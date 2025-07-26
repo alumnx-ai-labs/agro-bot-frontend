@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import DiseaseDetection from './components/DiseaseDetection';
 import GovernmentSchemes from './components/GovernmentSchemes';
+import Settings from './components/Settings';
 
 function App() {
   const [currentMode, setCurrentMode] = useState('disease');
@@ -12,6 +13,7 @@ function App() {
   const [error, setError] = useState(null);
   const [currentSessionId, setCurrentSessionId] = useState(null);
   const [managerThoughts, setManagerThoughts] = useState([]);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   useEffect(() => {
     checkHealth();
@@ -40,23 +42,30 @@ function App() {
     return userId;
   };
 
-  const getFarmSettings = () => {
+    const getFarmSettings = () => {
     const savedSettings = localStorage.getItem('farmSettings');
     if (savedSettings) {
-      return JSON.parse(savedSettings);
+      try {
+        return JSON.parse(savedSettings);
+      } catch (error) {
+        console.error('Error parsing farm settings:', error);
+        return getDefaultSettings();
+      }
     }
     
-    return {
-      cropType: 'Mosambi',
-      acreage: 15,
-      sowingDate: '2022-01-01',
-      currentStage: 'Fruit Development',
-      farmerName: 'Vijender',
-      soilType: 'A',
-      currentChallenges: 'Currently there are no challenges.',
-      preferredLanguages: ['English', 'Telugu']
-    };
+    return getDefaultSettings();
   };
+
+  const getDefaultSettings = () => ({
+    cropType: 'Mosambi',
+    acreage: 15,
+    sowingDate: '2022-01-01',
+    currentStage: 'Fruit Development',
+    farmerName: 'Vijender',
+    soilType: 'A',
+    currentChallenges: 'Currently there are no challenges.',
+    preferredLanguages: ['English', 'Telugu']
+  });
 
   const switchMode = (mode) => {
     setCurrentMode(mode);
@@ -474,13 +483,15 @@ function App() {
     }}>
       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '20px' }}>
         {/* Header */}
+{/* Header */}
         <header style={{ 
           textAlign: 'center', 
           background: 'white', 
           padding: '30px', 
           borderRadius: '15px', 
           boxShadow: '0 10px 30px rgba(0,0,0,0.1)', 
-          marginBottom: '30px' 
+          marginBottom: '30px',
+          position: 'relative'
         }}>
           <h1 style={{ color: '#4a7c59', marginBottom: '10px', fontSize: '2.5rem', margin: '0 0 10px 0' }}>
             🌱 Farmer Assistant MVP
@@ -488,6 +499,33 @@ function App() {
           <p style={{ color: '#666', fontSize: '1.1rem', margin: '0' }}>
             AI-Powered Crop Disease Detection & Agricultural Support
           </p>
+          <button
+            onClick={() => setIsSettingsOpen(true)}
+            style={{
+              position: 'absolute',
+              top: '20px',
+              right: '20px',
+              background: '#4a7c59',
+              color: 'white',
+              border: 'none',
+              padding: '10px 15px',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontSize: '1rem',
+              fontWeight: '600',
+              transition: 'all 0.3s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.background = '#3a6b49';
+              e.target.style.transform = 'translateY(-1px)';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.background = '#4a7c59';
+              e.target.style.transform = 'translateY(0)';
+            }}
+          >
+            ⚙️ Settings
+          </button>
         </header>
 
         {/* Mode Selection */}
@@ -656,6 +694,16 @@ function App() {
           }
         `}
       </style>
+
+      {/* Settings Modal */}
+        <Settings 
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+          onSave={(settings) => {
+            console.log('✅ Farm settings saved:', settings);
+            // You can add additional logic here if needed
+          }}
+        />
     </div>
   );
 }
