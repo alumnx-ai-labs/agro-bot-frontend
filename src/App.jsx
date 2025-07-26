@@ -105,8 +105,8 @@ function App() {
   const startSchemesQueryThoughts = () => {
     const thoughts = [
       "🤔 Understanding your query...",
-      "🔍 Searching government schemes database...",
-      "📊 Finding relevant schemes and policies...",
+      "🔍 Consulting AI farming database...",
+      "📊 Finding relevant insights and recommendations...",
       "✅ Query complete! Preparing information..."
     ];
 
@@ -120,7 +120,7 @@ function App() {
 
   const handleAnalyze = async (requestData) => {
     if (requestData.queryType === 'government_schemes') {
-      showLoading('Searching government schemes database...');
+      showLoading('Consulting farming AI assistant...');
     } else {
       showLoading('Analyzing your crop image...');
     }
@@ -147,7 +147,7 @@ function App() {
         console.log('✅ Analysis successful:', result);
         setCurrentSessionId(result.session_id);
         setResults(result);
-        setResultsTitle(requestData.queryType === 'government_schemes' ? 'Government Schemes Information' : 'Disease Analysis Results');
+        setResultsTitle(requestData.queryType === 'government_schemes' ? 'Farming AI Consultant Results' : 'Disease Analysis Results');
       } else {
         console.error('❌ Analysis failed:', result);
         setError(result.error || 'Analysis failed');
@@ -213,7 +213,7 @@ function App() {
         <div style={{ borderBottom: '2px solid #f0f0f0', paddingBottom: '15px', marginBottom: '25px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
             <h2 style={{ color: '#2c5530', fontSize: '1.4rem', fontWeight: 'bold', margin: 0 }}>
-              Government Schemes Information
+              Farming AI Consultant Results
             </h2>
             {agentResponse.confidence && (
               <span style={{
@@ -500,7 +500,7 @@ function App() {
         }}>
           {[
             { mode: 'disease', label: '🔬 Disease Detection', color: '#4a7c59' },
-            { mode: 'schemes', label: '🏛️ Government Schemes', color: '#667eea' },
+            { mode: 'schemes', label: '🤖 Farming AI Consultant', color: '#667eea' },
             { mode: 'talk', label: '🎤 Talk Now', color: '#f59e0b' },
             { mode: 'weather', label: '🌤️ Weather Stations', color: '#0891b2' }
           ].map(({ mode, label, color }) => (
