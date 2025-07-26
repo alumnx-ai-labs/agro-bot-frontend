@@ -1,6 +1,7 @@
 // src/App.jsx
 import React, { useState, useEffect } from 'react';
 import DiseaseDetection from './components/DiseaseDetection';
+import GovernmentSchemes from './components/GovernmentSchemes';
 
 function App() {
   const [currentMode, setCurrentMode] = useState('disease');
@@ -12,7 +13,6 @@ function App() {
   const [currentSessionId, setCurrentSessionId] = useState(null);
   const [managerThoughts, setManagerThoughts] = useState([]);
 
-  // Health check on component mount
   useEffect(() => {
     checkHealth();
   }, []);
@@ -31,42 +31,31 @@ function App() {
     }
   };
 
-  const testCloudFunction = async () => {
-    setIsLoading(true);
-    setLoadingText('Testing cloud function...');
-    setResults(null);
-    setError(null);
-
-    try {
-      const response = await fetch('https://us-central1-agro-bot-1212.cloudfunctions.net/farmer-assistant/api/analyze', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          inputType: 'text',
-          content: 'Hello! This is a test message.',
-          userId: 'test_user',
-          language: 'en'
-        })
-      });
-
-      const result = await response.json();
-      
-      if (response.ok) {
-        setResults(result);
-        setResultsTitle('Test Results');
-        console.log('✅ Test successful:', result);
-      } else {
-        setError(result.error || 'Test failed');
-        console.error('❌ Test failed:', result);
-      }
-    } catch (error) {
-      setError('Network error. Please check your connection.');
-      console.error('❌ Test request failed:', error);
-    } finally {
-      setIsLoading(false);
+  const getUserId = () => {
+    let userId = localStorage.getItem('farmerAssistantUserId');
+    if (!userId) {
+      userId = 'user_' + Math.random().toString(36).substr(2, 9);
+      localStorage.setItem('farmerAssistantUserId', userId);
     }
+    return userId;
+  };
+
+  const getFarmSettings = () => {
+    const savedSettings = localStorage.getItem('farmSettings');
+    if (savedSettings) {
+      return JSON.parse(savedSettings);
+    }
+    
+    return {
+      cropType: 'Mosambi',
+      acreage: 15,
+      sowingDate: '2022-01-01',
+      currentStage: 'Fruit Development',
+      farmerName: 'Vijender',
+      soilType: 'A',
+      currentChallenges: 'Currently there are no challenges.',
+      preferredLanguages: ['English', 'Telugu']
+    };
   };
 
   const switchMode = (mode) => {
@@ -90,9 +79,10 @@ function App() {
     setResults(null);
     setError(null);
     
-    // Show appropriate manager thoughts
     if (currentMode === 'disease') {
       startDiseaseAnalysisThoughts();
+    } else if (currentMode === 'schemes') {
+      startSchemesQueryThoughts();
     }
   };
 
@@ -112,18 +102,43 @@ function App() {
     });
   };
 
+  const startSchemesQueryThoughts = () => {
+    const thoughts = [
+      "🤔 Understanding your query...",
+      "🔍 Searching government schemes database...",
+      "📊 Finding relevant schemes and policies...",
+      "✅ Query complete! Preparing information..."
+    ];
+
+    setManagerThoughts([]);
+    thoughts.forEach((thought, index) => {
+      setTimeout(() => {
+        setManagerThoughts(prev => [...prev, thought]);
+      }, index * 2000);
+    });
+  };
+
   const handleAnalyze = async (requestData) => {
-    showLoading('Analyzing your crop image...');
+    if (requestData.queryType === 'government_schemes') {
+      showLoading('Searching government schemes database...');
+    } else {
+      showLoading('Analyzing your crop image...');
+    }
 
     try {
       console.log('📤 Sending analysis request...');
 
-      const response = await fetch('https://us-central1-agro-bot-1212.cloudfunctions.net/farmer-assistant/api/analyze', {
+      const response = await fetch('https://us-central1-agro-bot-1212.cloudfunctions.net/farmer-assistant/analyze', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(requestData)
+        body: JSON.stringify({
+          ...requestData,
+          userId: getUserId(),
+          farmSettings: getFarmSettings(),
+          ...(requestData.inputType === 'image' ? { image_data: requestData.content } : {})
+        })
       });
 
       const result = await response.json();
@@ -132,7 +147,7 @@ function App() {
         console.log('✅ Analysis successful:', result);
         setCurrentSessionId(result.session_id);
         setResults(result);
-        setResultsTitle('Disease Analysis Results');
+        setResultsTitle(requestData.queryType === 'government_schemes' ? 'Government Schemes Information' : 'Disease Analysis Results');
       } else {
         console.error('❌ Analysis failed:', result);
         setError(result.error || 'Analysis failed');
@@ -148,15 +163,36 @@ function App() {
   const renderResults = () => {
     if (!results) return null;
 
-    if (currentMode === 'disease' && results.agent_response && results.agent_response.analysis) {
+    console.log('Full results object:', results);
+
+    // Handle government schemes response
+    if (results.agent_response && (results.agent_response.message || results.agent_response.schemes)) {
+      return renderSchemesResponse(results.agent_response);
+    }
+
+    // Handle disease analysis responses (existing code)
+    if (results.final_response && results.final_response.detailed_analysis) {
+      return renderDiseaseAnalysis(results.final_response.detailed_analysis);
+    }
+    
+    if (results.final_response && results.final_response.type === 'disease_analysis' && results.final_response.analysis) {
+      return renderDiseaseAnalysis(results.final_response.analysis);
+    }
+    
+    if (results.agent_response && results.agent_response.type === 'disease_analysis' && results.agent_response.analysis) {
       return renderDiseaseAnalysis(results.agent_response.analysis);
     }
 
+    if (results.analysis) {
+      return renderDiseaseAnalysis(results.analysis);
+    }
+
+    // Fallback - show the raw response for debugging
     return (
       <div style={{ background: 'white', borderRadius: '15px', padding: '25px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}>
-        <h3 style={{ color: '#4a7c59', marginBottom: '20px' }}>Response</h3>
-        <div style={{ background: '#f8f9fa', padding: '15px', borderRadius: '8px' }}>
-          <pre style={{ whiteSpace: 'pre-wrap', fontSize: '14px', margin: 0 }}>
+        <h3 style={{ color: '#4a7c59', marginBottom: '20px' }}>Analysis Results</h3>
+        <div style={{ background: '#f8f9fa', padding: '20px', borderRadius: '8px', lineHeight: '1.6' }}>
+          <pre style={{ whiteSpace: 'pre-wrap', fontSize: '14px', overflow: 'auto' }}>
             {JSON.stringify(results, null, 2)}
           </pre>
         </div>
@@ -164,21 +200,138 @@ function App() {
     );
   };
 
-  const renderDiseaseAnalysis = (analysis) => {
+  const renderSchemesResponse = (agentResponse) => {
+    const formatText = (text) => {
+      return text
+        .replace(/\n/g, '<br>')
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>');
+    };
+
     return (
       <div style={{ background: 'white', borderRadius: '15px', padding: '25px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}>
         <div style={{ borderBottom: '2px solid #f0f0f0', paddingBottom: '15px', marginBottom: '25px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
-            <h2 style={{ color: '#2c5530', fontSize: '1.4rem', fontWeight: 'bold', margin: 0 }}>{analysis.disease_name}</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+            <h2 style={{ color: '#2c5530', fontSize: '1.4rem', fontWeight: 'bold', margin: 0 }}>
+              Government Schemes Information
+            </h2>
+            {agentResponse.confidence && (
+              <span style={{
+                padding: '5px 12px',
+                borderRadius: '15px',
+                fontSize: '0.85rem',
+                fontWeight: '600',
+                textTransform: 'uppercase',
+                background: '#d4edda',
+                color: '#155724',
+                border: '1px solid #c3e6cb'
+              }}>
+                {agentResponse.confidence} relevance
+              </span>
+            )}
+          </div>
+        </div>
+
+        {agentResponse.message && (
+          <div style={{ marginBottom: '25px' }}>
+            <div style={{ fontSize: '1.05rem', lineHeight: '1.6' }}>
+              <div dangerouslySetInnerHTML={{ __html: formatText(agentResponse.message) }} />
+            </div>
+          </div>
+        )}
+
+        {agentResponse.schemes && agentResponse.schemes.length > 0 && (
+          <div style={{ marginBottom: '25px' }}>
+            <h4 style={{ color: '#4a7c59', marginBottom: '15px', fontSize: '1.1rem' }}>
+              📋 Relevant Schemes:
+            </h4>
+            {agentResponse.schemes.map((scheme, index) => (
+              <div key={index} style={{
+                background: '#f8f9fa',
+                padding: '20px',
+                borderRadius: '10px',
+                marginBottom: '15px',
+                borderLeft: '4px solid #4a7c59'
+              }}>
+                <h5 style={{ color: '#2c5530', marginBottom: '10px', fontSize: '1.2rem' }}>
+                  {scheme.name}
+                </h5>
+                <p style={{ marginBottom: '8px', lineHeight: '1.5' }}>
+                  <strong>Description:</strong> {scheme.description}
+                </p>
+                {scheme.eligibility && (
+                  <p style={{ marginBottom: '8px', lineHeight: '1.5' }}>
+                    <strong>Eligibility:</strong> {scheme.eligibility}
+                  </p>
+                )}
+                {scheme.benefits && (
+                  <p style={{ marginBottom: '8px', lineHeight: '1.5' }}>
+                    <strong>Benefits:</strong> {scheme.benefits}
+                  </p>
+                )}
+                {scheme.application_process && (
+                  <p style={{ marginBottom: '8px', lineHeight: '1.5' }}>
+                    <strong>How to Apply:</strong> {scheme.application_process}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {agentResponse.sources && agentResponse.sources.length > 0 && (
+          <div style={{ marginBottom: '25px' }}>
+            <h4 style={{ color: '#4a7c59', marginBottom: '15px', fontSize: '1.1rem' }}>
+              📚 Sources:
+            </h4>
+            <div style={{ background: '#e3f2fd', padding: '15px', borderRadius: '8px' }}>
+              <ul style={{ paddingLeft: '20px', margin: 0 }}>
+                {agentResponse.sources.map((source, index) => (
+                  <li key={index} style={{ color: '#1976d2', fontWeight: '500', marginBottom: '8px', lineHeight: '1.5' }}>
+                    {source}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderDiseaseAnalysis = (analysis) => {
+    if (!analysis) {
+      return (
+        <div style={{ background: 'white', borderRadius: '15px', padding: '25px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}>
+          <h3 style={{ color: '#dc3545', marginBottom: '20px' }}>Analysis Error</h3>
+          <p>Analysis data is missing or invalid.</p>
+        </div>
+      );
+    }
+    
+    const getConfidenceStyle = (confidence) => {
+      const styles = {
+        high: { background: '#d4edda', color: '#155724', border: '1px solid #c3e6cb' },
+        medium: { background: '#fff3cd', color: '#856404', border: '1px solid #ffeaa7' },
+        low: { background: '#f8d7da', color: '#721c24', border: '1px solid #f5c6cb' }
+      };
+      return styles[confidence] || styles.low;
+    };
+
+    return (
+      <div style={{ background: 'white', borderRadius: '15px', padding: '25px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}>
+        <div style={{ borderBottom: '2px solid #f0f0f0', paddingBottom: '15px', marginBottom: '25px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+            <h2 style={{ color: '#2c5530', fontSize: '1.4rem', fontWeight: 'bold', margin: 0 }}>
+              {analysis.disease_name}
+            </h2>
             <span style={{
               padding: '5px 12px',
               borderRadius: '15px',
               fontSize: '0.85rem',
               fontWeight: '600',
               textTransform: 'uppercase',
-              background: analysis.confidence === 'high' ? '#d4edda' : analysis.confidence === 'medium' ? '#fff3cd' : '#f8d7da',
-              color: analysis.confidence === 'high' ? '#155724' : analysis.confidence === 'medium' ? '#856404' : '#721c24',
-              border: `1px solid ${analysis.confidence === 'high' ? '#c3e6cb' : analysis.confidence === 'medium' ? '#ffeaa7' : '#f5c6cb'}`
+              ...getConfidenceStyle(analysis.confidence)
             }}>
               {analysis.confidence} confidence
             </span>
@@ -187,40 +340,60 @@ function App() {
 
         {analysis.severity !== 'none' && (
           <div style={{ marginBottom: '25px' }}>
-            <h4 style={{ color: '#dc3545', marginBottom: '15px', fontSize: '1.1rem' }}>🚨 Severity: {analysis.severity}</h4>
+            <h4 style={{ color: '#dc3545', marginBottom: '15px', fontSize: '1.1rem' }}>
+              🚨 Severity: {analysis.severity}
+            </h4>
           </div>
         )}
 
         {analysis.symptoms_observed && analysis.symptoms_observed.length > 0 && (
           <div style={{ marginBottom: '25px' }}>
-            <h4 style={{ color: '#4a7c59', marginBottom: '15px', fontSize: '1.1rem' }}>👀 Symptoms Observed:</h4>
+            <h4 style={{ color: '#4a7c59', marginBottom: '15px', fontSize: '1.1rem' }}>
+              👀 Symptoms Observed:
+            </h4>
             <ul style={{ paddingLeft: '20px' }}>
               {analysis.symptoms_observed.map((symptom, index) => (
-                <li key={index} style={{ marginBottom: '8px', lineHeight: '1.5' }}>{symptom}</li>
+                <li key={index} style={{ marginBottom: '8px', lineHeight: '1.5' }}>
+                  {symptom}
+                </li>
               ))}
             </ul>
           </div>
         )}
 
         <div style={{ marginBottom: '25px' }}>
-          <h4 style={{ color: '#4a7c59', marginBottom: '15px', fontSize: '1.1rem' }}>⚡ Immediate Action:</h4>
+          <h4 style={{ color: '#4a7c59', marginBottom: '15px', fontSize: '1.1rem' }}>
+            ⚡ Immediate Action:
+          </h4>
           <div style={{ background: '#f8f9fa', padding: '15px', borderRadius: '8px', borderLeft: '4px solid #4a7c59' }}>
             <p style={{ margin: 0 }}>{analysis.immediate_action}</p>
           </div>
         </div>
 
         <div style={{ marginBottom: '25px' }}>
-          <h4 style={{ color: '#4a7c59', marginBottom: '15px', fontSize: '1.1rem' }}>💊 Treatment Summary:</h4>
+          <h4 style={{ color: '#4a7c59', marginBottom: '15px', fontSize: '1.1rem' }}>
+            💊 Treatment Summary:
+          </h4>
           <p style={{ lineHeight: '1.5', margin: 0 }}>{analysis.treatment_summary}</p>
         </div>
 
         {analysis.organic_solutions && analysis.organic_solutions.length > 0 && (
           <div style={{ marginBottom: '25px' }}>
-            <h4 style={{ color: '#4a7c59', marginBottom: '15px', fontSize: '1.1rem' }}>🌿 Organic Solutions:</h4>
+            <h4 style={{ color: '#4a7c59', marginBottom: '15px', fontSize: '1.1rem' }}>
+              🌿 Organic Solutions:
+            </h4>
             <div>
               {analysis.organic_solutions.map((solution, index) => (
-                <div key={index} style={{ background: '#f8f9fa', padding: '15px', borderRadius: '8px', borderLeft: '4px solid #4a7c59', marginBottom: '15px' }}>
-                  <h5 style={{ fontWeight: '600', marginBottom: '10px', color: '#2c5530' }}>{solution.name}</h5>
+                <div key={index} style={{ 
+                  background: '#f8f9fa', 
+                  padding: '15px', 
+                  borderRadius: '8px', 
+                  borderLeft: '4px solid #4a7c59', 
+                  marginBottom: '15px' 
+                }}>
+                  <h5 style={{ fontWeight: '600', marginBottom: '10px', color: '#2c5530' }}>
+                    {solution.name}
+                  </h5>
                   <p style={{ margin: '5px 0', fontSize: '0.95rem' }}>
                     <strong>Preparation:</strong> {solution.preparation}
                   </p>
@@ -235,35 +408,62 @@ function App() {
 
         {analysis.prevention_tips && analysis.prevention_tips.length > 0 && (
           <div style={{ marginBottom: '25px' }}>
-            <h4 style={{ color: '#4a7c59', marginBottom: '15px', fontSize: '1.1rem' }}>🛡️ Prevention Tips:</h4>
+            <h4 style={{ color: '#4a7c59', marginBottom: '15px', fontSize: '1.1rem' }}>
+              🛡️ Prevention Tips:
+            </h4>
             <ul style={{ paddingLeft: '20px' }}>
               {analysis.prevention_tips.map((tip, index) => (
-                <li key={index} style={{ marginBottom: '8px', lineHeight: '1.5' }}>{tip}</li>
+                <li key={index} style={{ marginBottom: '8px', lineHeight: '1.5' }}>
+                  {tip}
+                </li>
               ))}
             </ul>
           </div>
         )}
 
         <div style={{ marginBottom: '25px' }}>
-          <h4 style={{ color: '#4a7c59', marginBottom: '15px', fontSize: '1.1rem' }}>💰 Cost Estimate:</h4>
+          <h4 style={{ color: '#4a7c59', marginBottom: '15px', fontSize: '1.1rem' }}>
+            💰 Cost Estimate:
+          </h4>
           <div style={{ background: '#e8f5e8', padding: '12px', borderRadius: '8px', textAlign: 'center' }}>
             <span style={{ color: '#2c5530', fontWeight: '600' }}>{analysis.cost_estimate}</span>
           </div>
         </div>
 
         <div style={{ marginBottom: '25px' }}>
-          <h4 style={{ color: '#4a7c59', marginBottom: '15px', fontSize: '1.1rem' }}>⏱️ Expected Timeline:</h4>
+          <h4 style={{ color: '#4a7c59', marginBottom: '15px', fontSize: '1.1rem' }}>
+            ⏱️ Expected Timeline:
+          </h4>
           <p style={{ lineHeight: '1.5', margin: 0 }}>{analysis.success_timeline}</p>
         </div>
 
         <div style={{ marginBottom: '25px' }}>
-          <h4 style={{ color: '#4a7c59', marginBottom: '15px', fontSize: '1.1rem' }}>⚠️ Warning Signs:</h4>
+          <h4 style={{ color: '#4a7c59', marginBottom: '15px', fontSize: '1.1rem' }}>
+            ⚠️ Warning Signs:
+          </h4>
           <div style={{ background: '#fee2e2', border: '1px solid #fecaca', borderRadius: '8px', padding: '15px' }}>
             <p style={{ color: '#991b1b', fontWeight: '600', margin: 0 }}>{analysis.warning_signs}</p>
           </div>
         </div>
       </div>
     );
+  };
+
+  const buttonStyle = {
+    padding: '15px 25px',
+    border: 'none',
+    borderRadius: '10px',
+    fontSize: '1.1rem',
+    fontWeight: '600',
+    cursor: 'pointer',
+    transition: 'all 0.3s ease',
+    boxShadow: '0 5px 15px rgba(0,0,0,0.1)'
+  };
+
+  const activeButtonStyle = {
+    ...buttonStyle,
+    boxShadow: '0 8px 25px rgba(0,0,0,0.2)',
+    transform: 'translateY(-2px)'
   };
 
   return (
@@ -285,37 +485,9 @@ function App() {
           <h1 style={{ color: '#4a7c59', marginBottom: '10px', fontSize: '2.5rem', margin: '0 0 10px 0' }}>
             🌱 Farmer Assistant MVP
           </h1>
-          <p style={{ color: '#666', fontSize: '1.1rem', margin: '0 0 20px 0' }}>
-            React Frontend + Cloud Function Backend
+          <p style={{ color: '#666', fontSize: '1.1rem', margin: '0' }}>
+            AI-Powered Crop Disease Detection & Agricultural Support
           </p>
-          <button
-            onClick={testCloudFunction}
-            disabled={isLoading}
-            style={{
-              padding: '15px 30px',
-              border: 'none',
-              borderRadius: '10px',
-              fontSize: '1.1rem',
-              fontWeight: '600',
-              cursor: isLoading ? 'not-allowed' : 'pointer',
-              background: isLoading ? '#ccc' : '#4a7c59',
-              color: 'white',
-              opacity: isLoading ? 0.6 : 1,
-              transition: 'all 0.3s ease'
-            }}
-            onMouseOver={(e) => {
-              if (!isLoading) {
-                e.target.style.transform = 'translateY(-2px)';
-                e.target.style.boxShadow = '0 8px 25px rgba(0,0,0,0.2)';
-              }
-            }}
-            onMouseOut={(e) => {
-              e.target.style.transform = 'translateY(0)';
-              e.target.style.boxShadow = 'none';
-            }}
-          >
-            ⚡ Test Cloud Function
-          </button>
         </header>
 
         {/* Mode Selection */}
@@ -336,29 +508,9 @@ function App() {
               key={mode}
               onClick={() => switchMode(mode)}
               style={{
-                padding: '15px 25px',
-                border: 'none',
-                borderRadius: '10px',
+                ...(currentMode === mode ? activeButtonStyle : buttonStyle),
                 background: currentMode === mode ? color : 'rgba(255, 255, 255, 0.9)',
-                color: currentMode === mode ? 'white' : '#333',
-                fontSize: '1.1rem',
-                fontWeight: '600',
-                cursor: 'pointer',
-                transition: 'all 0.3s ease',
-                boxShadow: currentMode === mode ? '0 8px 25px rgba(0,0,0,0.2)' : '0 5px 15px rgba(0,0,0,0.1)',
-                transform: currentMode === mode ? 'translateY(-2px)' : 'translateY(0)'
-              }}
-              onMouseOver={(e) => {
-                if (currentMode !== mode) {
-                  e.target.style.transform = 'translateY(-2px)';
-                  e.target.style.boxShadow = '0 8px 25px rgba(0,0,0,0.2)';
-                }
-              }}
-              onMouseOut={(e) => {
-                if (currentMode !== mode) {
-                  e.target.style.transform = 'translateY(0)';
-                  e.target.style.boxShadow = '0 5px 15px rgba(0,0,0,0.1)';
-                }
+                color: currentMode === mode ? 'white' : '#333'
               }}
             >
               {label}
@@ -372,7 +524,11 @@ function App() {
             <DiseaseDetection onAnalyze={handleAnalyze} isLoading={isLoading} />
           )}
 
-          {currentMode !== 'disease' && (
+          {currentMode === 'schemes' && (
+            <GovernmentSchemes onAnalyze={handleAnalyze} isLoading={isLoading} />
+          )}
+
+          {(currentMode === 'talk' || currentMode === 'weather') && (
             <div style={{ 
               background: 'white', 
               padding: '30px', 
@@ -381,7 +537,6 @@ function App() {
               textAlign: 'center' 
             }}>
               <h2 style={{ color: '#4a7c59', marginBottom: '20px' }}>
-                {currentMode === 'schemes' && '🏛️ Government Schemes'}
                 {currentMode === 'talk' && '🎤 Talk Now'}
                 {currentMode === 'weather' && '🌤️ Weather Stations'}
               </h2>
@@ -422,8 +577,7 @@ function App() {
                         padding: '10px 15px',
                         borderRadius: '20px',
                         margin: '10px 0',
-                        borderLeft: '4px solid #4a7c59',
-                        animation: 'fadeInUp 0.5s ease'
+                        borderLeft: '4px solid #4a7c59'
                       }}
                     >
                       {thought}
@@ -472,23 +626,9 @@ function App() {
               <button
                 onClick={resetInterface}
                 style={{
+                  ...buttonStyle,
                   background: '#6c757d',
-                  color: 'white',
-                  border: 'none',
-                  padding: '15px 30px',
-                  borderRadius: '10px',
-                  fontSize: '1.1rem',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  transition: 'all 0.3s ease'
-                }}
-                onMouseOver={(e) => {
-                  e.target.style.background = '#5a6268';
-                  e.target.style.transform = 'translateY(-2px)';
-                }}
-                onMouseOut={(e) => {
-                  e.target.style.background = '#6c757d';
-                  e.target.style.transform = 'translateY(0)';
+                  color: 'white'
                 }}
               >
                 Try Again
@@ -514,21 +654,10 @@ function App() {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
           }
-          @keyframes fadeInUp {
-            from {
-              opacity: 0;
-              transform: translateY(20px);
-            }
-            to {
-              opacity: 1;
-              transform: translateY(0);
-            }
-          }
         `}
       </style>
     </div>
   );
 }
-
 
 export default App;
