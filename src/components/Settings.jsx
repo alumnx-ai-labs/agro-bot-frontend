@@ -3,14 +3,14 @@ import React, { useState, useEffect } from 'react';
 
 const Settings = ({ isOpen, onClose, onSave }) => {
   const [formData, setFormData] = useState({
+    farmerName: 'Vijender',
     cropType: 'Mosambi',
     acreage: 15,
     sowingDate: '2022-01-01',
     currentStage: 'Fruit Development',
-    farmerName: 'Vijender',
     soilType: 'A',
     currentChallenges: 'Currently there are no challenges.',
-    preferredLanguages: ['English', 'Telugu']
+    preferredLanguages: ['English']
   });
 
   const [isSaving, setIsSaving] = useState(false);
@@ -52,9 +52,8 @@ const Settings = ({ isOpen, onClose, onSave }) => {
 
   const handleLanguageChange = (language, checked) => {
     setFormData(prev => {
-      const newLanguages = checked
-        ? [...prev.preferredLanguages, language]
-        : prev.preferredLanguages.filter(lang => lang !== language);
+      // Only allow one language to be selected at a time
+      const newLanguages = checked ? [language] : [];
       
       return {
         ...prev,
@@ -181,6 +180,31 @@ const Settings = ({ isOpen, onClose, onSave }) => {
               fontWeight: '600',
               color: '#4a7c59'
             }}>
+              Farmer Name:
+            </label>
+            <input
+              type="text"
+              name="farmerName"
+              value={formData.farmerName}
+              onChange={handleInputChange}
+              style={{
+                width: '100%',
+                padding: '10px',
+                border: '2px solid #e0e0e0',
+                borderRadius: '8px',
+                fontSize: '1rem',
+                fontFamily: 'inherit'
+              }}
+            />
+          </div>
+
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{
+              display: 'block',
+              marginBottom: '5px',
+              fontWeight: '600',
+              color: '#4a7c59'
+            }}>
               Crop Type:
             </label>
             <input
@@ -286,31 +310,6 @@ const Settings = ({ isOpen, onClose, onSave }) => {
               fontWeight: '600',
               color: '#4a7c59'
             }}>
-              Farmer Name:
-            </label>
-            <input
-              type="text"
-              name="farmerName"
-              value={formData.farmerName}
-              onChange={handleInputChange}
-              style={{
-                width: '100%',
-                padding: '10px',
-                border: '2px solid #e0e0e0',
-                borderRadius: '8px',
-                fontSize: '1rem',
-                fontFamily: 'inherit'
-              }}
-            />
-          </div>
-
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{
-              display: 'block',
-              marginBottom: '5px',
-              fontWeight: '600',
-              color: '#4a7c59'
-            }}>
               Soil Type:
             </label>
             <select
@@ -366,7 +365,7 @@ const Settings = ({ isOpen, onClose, onSave }) => {
               fontWeight: '600',
               color: '#4a7c59'
             }}>
-              Preferred Languages:
+              Preferred Language:
             </label>
             <div style={{
               display: 'grid',

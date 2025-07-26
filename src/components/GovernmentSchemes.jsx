@@ -1,7 +1,16 @@
 // src/components/GovernmentSchemes.jsx
 import React, { useState } from 'react';
 
-const GovernmentSchemes = ({ onAnalyze, isLoading }) => {
+const GovernmentSchemes = ({ 
+  onAnalyze, 
+  isLoading, 
+  voiceSupport, 
+  onStartRecording, 
+  onStopRecording, 
+  onVoiceQuery, 
+  isRecording, 
+  recordedAudio 
+}) => {
   const [query, setQuery] = useState('');
 
   const exampleQueries = [
@@ -15,7 +24,7 @@ const GovernmentSchemes = ({ onAnalyze, isLoading }) => {
     setQuery(exampleQuery);
   };
 
-  const handleSubmit = async (e) => {
+  const handleTextSubmit = async (e) => {
     e.preventDefault();
     
     if (!query.trim()) {
@@ -33,10 +42,16 @@ const GovernmentSchemes = ({ onAnalyze, isLoading }) => {
     await onAnalyze(requestData);
   };
 
+  const handleVoiceSubmit = async () => {
+    if (recordedAudio) {
+      await onVoiceQuery(recordedAudio);
+    }
+  };
+
   const handleKeyPress = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSubmit(e);
+      handleTextSubmit(e);
     }
   };
 
@@ -85,8 +100,6 @@ const GovernmentSchemes = ({ onAnalyze, isLoading }) => {
     textDecoration: 'none',
     display: 'inline-block',
     textAlign: 'center',
-    background: '#28a745',
-    color: 'white',
     boxShadow: '0 5px 15px rgba(0,0,0,0.1)'
   };
 
@@ -99,6 +112,53 @@ const GovernmentSchemes = ({ onAnalyze, isLoading }) => {
     opacity: '0.6',
     cursor: 'not-allowed',
     transform: 'none'
+  };
+
+  const buttonContainerStyle = {
+    display: 'flex',
+    gap: '15px',
+    alignItems: 'center',
+    flexWrap: 'wrap'
+  };
+
+  const textButtonStyle = {
+    ...buttonStyle,
+    background: '#28a745',
+    color: 'white'
+  };
+
+  const voiceButtonStyle = {
+    ...buttonStyle,
+    background: isRecording ? '#dc3545' : '#667eea',
+    color: 'white'
+  };
+
+  const submitVoiceButtonStyle = {
+    ...buttonStyle,
+    background: '#28a745',
+    color: 'white'
+  };
+
+  const recordingStatusStyle = {
+    marginTop: '15px',
+    padding: '10px 15px',
+    background: '#ffebee',
+    color: '#c62828',
+    border: '1px solid #ef5350',
+    borderRadius: '8px',
+    textAlign: 'center',
+    fontWeight: '600'
+  };
+
+  const recordedStatusStyle = {
+    marginTop: '15px',
+    padding: '10px 15px',
+    background: '#e8f5e8',
+    color: '#2e7d32',
+    border: '1px solid #66bb6a',
+    borderRadius: '8px',
+    textAlign: 'center',
+    fontWeight: '600'
   };
 
   const examplesStyle = {
@@ -160,27 +220,96 @@ const GovernmentSchemes = ({ onAnalyze, isLoading }) => {
         </div>
 
         <div style={inputGroupStyle}>
-          <button
-            onClick={handleSubmit}
-            disabled={isLoading || !query.trim()}
-            style={{
-              ...buttonStyle,
-              ...(isLoading || !query.trim() ? buttonDisabledStyle : {})
-            }}
-            onMouseEnter={(e) => {
-              if (!isLoading && query.trim()) {
-                Object.assign(e.target.style, buttonHoverStyle);
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!isLoading && query.trim()) {
-                e.target.style.transform = 'none';
-                e.target.style.boxShadow = '0 5px 15px rgba(0,0,0,0.1)';
-              }
-            }}
-          >
-            🔍 Search Schemes
-          </button>
+          <div style={buttonContainerStyle}>
+            {/* Text Query Button */}
+            <button
+              onClick={handleTextSubmit}
+              disabled={isLoading || !query.trim()}
+              style={{
+                ...textButtonStyle,
+                ...(isLoading || !query.trim() ? buttonDisabledStyle : {})
+              }}
+              onMouseEnter={(e) => {
+                if (!isLoading && query.trim()) {
+                  Object.assign(e.target.style, buttonHoverStyle);
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isLoading && query.trim()) {
+                  e.target.style.transform = 'none';
+                  e.target.style.boxShadow = '0 5px 15px rgba(0,0,0,0.1)';
+                }
+              }}
+            >
+              🔍 Search Schemes
+            </button>
+
+            {/* Voice Recording Button */}
+            {voiceSupport && (
+              <>
+                <button
+                  onClick={isRecording ? onStopRecording : onStartRecording}
+                  disabled={isLoading}
+                  style={{
+                    ...voiceButtonStyle,
+                    ...(isLoading ? buttonDisabledStyle : {})
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isLoading) {
+                      Object.assign(e.target.style, buttonHoverStyle);
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isLoading) {
+                      e.target.style.transform = 'none';
+                      e.target.style.boxShadow = '0 5px 15px rgba(0,0,0,0.1)';
+                    }
+                  }}
+                >
+                  {isRecording ? '⏹️ Stop Recording' : '🎤 Voice Query'}
+                </button>
+
+                {/* Submit Voice Query Button */}
+                {recordedAudio && !isRecording && (
+                  <button
+                    onClick={handleVoiceSubmit}
+                    disabled={isLoading}
+                    style={{
+                      ...submitVoiceButtonStyle,
+                      ...(isLoading ? buttonDisabledStyle : {})
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isLoading) {
+                        Object.assign(e.target.style, buttonHoverStyle);
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isLoading) {
+                        e.target.style.transform = 'none';
+                        e.target.style.boxShadow = '0 5px 15px rgba(0,0,0,0.1)';
+                      }
+                    }}
+                  >
+                    🚀 Submit Voice Query
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Recording Status */}
+          {isRecording && (
+            <div style={recordingStatusStyle}>
+              🔴 Recording... Speak your question about government schemes
+            </div>
+          )}
+
+          {/* Recorded Audio Status */}
+          {recordedAudio && !isRecording && (
+            <div style={recordedStatusStyle}>
+              ✅ Voice recorded! Click "Submit Voice Query" to process.
+            </div>
+          )}
         </div>
 
         <div style={examplesStyle}>

@@ -15,13 +15,19 @@ function App() {
   const [managerThoughts, setManagerThoughts] = useState([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
+  // Voice recording states
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordedAudio, setRecordedAudio] = useState(null);
+  const [mediaRecorder, setMediaRecorder] = useState(null);
+  const [audioChunks, setAudioChunks] = useState([]);
+
   useEffect(() => {
     checkHealth();
   }, []);
 
   const checkHealth = async () => {
     try {
-      const response = await fetch('https://us-central1-agro-bot-1212.cloudfunctions.net/farmer-assistant/health');
+      const response = await fetch('https://us-central1-agro-bot-1212.cloudfunctions.net/new_farmer-assistant/health');
       const health = await response.json();
       if (health.status === 'healthy') {
         console.log('✅ System healthy');
@@ -42,7 +48,7 @@ function App() {
     return userId;
   };
 
-    const getFarmSettings = () => {
+  const getFarmSettings = () => {
     const savedSettings = localStorage.getItem('farmSettings');
     if (savedSettings) {
       try {
@@ -80,6 +86,14 @@ function App() {
     setError(null);
     setCurrentSessionId(null);
     setManagerThoughts([]);
+    
+    // Reset voice recording states
+    setIsRecording(false);
+    setRecordedAudio(null);
+    setAudioChunks([]);
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      mediaRecorder.stop();
+    }
   };
 
   const showLoading = (message = 'Processing your request...') => {
@@ -127,9 +141,67 @@ function App() {
     });
   };
 
+  // Voice recording functions
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const chunks = [];
+
+      recorder.ondataavailable = (event) => {
+        chunks.push(event.data);
+      };
+
+      recorder.onstop = () => {
+        const audioBlob = new Blob(chunks, { type: 'audio/webm' });
+        convertAudioToBase64(audioBlob);
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      recorder.start();
+      setMediaRecorder(recorder);
+      setAudioChunks(chunks);
+      setIsRecording(true);
+    } catch (error) {
+      console.error('Error starting recording:', error);
+      alert('Unable to access microphone. Please check permissions.');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      mediaRecorder.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const convertAudioToBase64 = (audioBlob) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64Audio = reader.result.split(',')[1];
+      setRecordedAudio(base64Audio);
+    };
+    reader.readAsDataURL(audioBlob);
+  };
+
+  const handleVoiceQuery = async (audioData) => {
+    const requestData = {
+      inputType: 'audio',
+      content: audioData,
+      queryType: 'government_schemes',
+      language: 'en'
+    };
+    
+    await handleAnalyze(requestData);
+  };
+
   const handleAnalyze = async (requestData) => {
     if (requestData.queryType === 'government_schemes') {
-      showLoading('Consulting farming AI assistant...');
+      if (requestData.inputType === 'audio') {
+        showLoading('Transcribing and processing your voice query...');
+      } else {
+        showLoading('Consulting farming AI assistant...');
+      }
     } else {
       showLoading('Analyzing your crop image...');
     }
@@ -137,7 +209,7 @@ function App() {
     try {
       console.log('📤 Sending analysis request...');
 
-      const response = await fetch('https://us-central1-agro-bot-1212.cloudfunctions.net/farmer-assistant/analyze', {
+      const response = await fetch('https://us-central1-agro-bot-1212.cloudfunctions.net/new_farmer-assistant/analyze', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -156,7 +228,11 @@ function App() {
         console.log('✅ Analysis successful:', result);
         setCurrentSessionId(result.session_id);
         setResults(result);
-        setResultsTitle(requestData.queryType === 'government_schemes' ? 'Farming AI Consultant Results' : 'Disease Analysis Results');
+        if (requestData.inputType === 'audio') {
+          setResultsTitle('Voice Query Results');
+        } else {
+          setResultsTitle(requestData.queryType === 'government_schemes' ? 'Farming AI Consultant Results' : 'Disease Analysis Results');
+        }
       } else {
         console.error('❌ Analysis failed:', result);
         setError(result.error || 'Analysis failed');
@@ -169,15 +245,23 @@ function App() {
     }
   };
 
-  const renderResults = () => {
-    if (!results) return null;
+const renderResults = () => {
+  if (!results) return null;
 
-    console.log('Full results object:', results);
+  console.log('Full results object:', results);
 
-    // Handle government schemes response
-    if (results.agent_response && (results.agent_response.message || results.agent_response.schemes)) {
-      return renderSchemesResponse(results.agent_response);
-    }
+  // Handle government schemes response - prioritize message-only responses
+  if (results.final_response && results.final_response.message) {
+    return renderMessageOnly(results.final_response.message);
+  }
+  
+  if (results.agent_response && results.agent_response.message && !results.agent_response.schemes) {
+    return renderMessageOnly(results.agent_response.message);
+  }
+
+  if (results.agent_response && (results.agent_response.message || results.agent_response.schemes)) {
+    return renderSchemesResponse(results.agent_response);
+  }
 
     // Handle disease analysis responses (existing code)
     if (results.final_response && results.final_response.detailed_analysis) {
@@ -208,6 +292,23 @@ function App() {
       </div>
     );
   };
+
+  const renderMessageOnly = (message) => {
+  const formatText = (text) => {
+    return text
+      .replace(/\n/g, '<br>')
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>');
+  };
+
+  return (
+    <div style={{ background: 'white', borderRadius: '15px', padding: '25px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}>
+      <div style={{ fontSize: '1.05rem', lineHeight: '1.6' }}>
+        <div dangerouslySetInnerHTML={{ __html: formatText(message) }} />
+      </div>
+    </div>
+  );
+};
 
   const renderSchemesResponse = (agentResponse) => {
     const formatText = (text) => {
@@ -483,7 +584,6 @@ function App() {
     }}>
       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '20px' }}>
         {/* Header */}
-{/* Header */}
         <header style={{ 
           textAlign: 'center', 
           background: 'white', 
@@ -539,7 +639,6 @@ function App() {
           {[
             { mode: 'disease', label: '🔬 Disease Detection', color: '#4a7c59' },
             { mode: 'schemes', label: '🤖 Farming AI Consultant', color: '#667eea' },
-            { mode: 'talk', label: '🎤 Talk Now', color: '#f59e0b' },
             { mode: 'weather', label: '🌤️ Weather Stations', color: '#0891b2' }
           ].map(({ mode, label, color }) => (
             <button
@@ -563,10 +662,19 @@ function App() {
           )}
 
           {currentMode === 'schemes' && (
-            <GovernmentSchemes onAnalyze={handleAnalyze} isLoading={isLoading} />
+            <GovernmentSchemes 
+              onAnalyze={handleAnalyze} 
+              isLoading={isLoading}
+              voiceSupport={true}
+              onStartRecording={startRecording}
+              onStopRecording={stopRecording}
+              onVoiceQuery={handleVoiceQuery}
+              isRecording={isRecording}
+              recordedAudio={recordedAudio}
+            />
           )}
 
-          {(currentMode === 'talk' || currentMode === 'weather') && (
+          {currentMode === 'weather' && (
             <div style={{ 
               background: 'white', 
               padding: '30px', 
@@ -575,8 +683,7 @@ function App() {
               textAlign: 'center' 
             }}>
               <h2 style={{ color: '#4a7c59', marginBottom: '20px' }}>
-                {currentMode === 'talk' && '🎤 Talk Now'}
-                {currentMode === 'weather' && '🌤️ Weather Stations'}
+                🌤️ Weather Stations
               </h2>
               <p style={{ color: '#666', fontSize: '1.1rem' }}>Feature coming soon...</p>
             </div>
