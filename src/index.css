@@ -1,0 +1,97 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles for the Farmer Assistant app */
+@layer base {
+  html {
+    font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply px-4 py-2 rounded-lg font-semibold transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2;
+  }
+  
+  .btn-primary {
+    @apply bg-green-600 text-white hover:bg-green-700 focus:ring-green-500;
+  }
+  
+  .btn-secondary {
+    @apply bg-gray-600 text-white hover:bg-gray-700 focus:ring-gray-500;
+  }
+  
+  .btn-danger {
+    @apply bg-red-600 text-white hover:bg-red-700 focus:ring-red-500;
+  }
+  
+  .card {
+    @apply bg-white rounded-xl shadow-lg p-6;
+  }
+  
+  .input-field {
+    @apply w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent;
+  }
+  
+  .loading-spinner {
+    @apply animate-spin rounded-full border-b-2 border-green-600;
+  }
+}
+
+@layer utilities {
+  .text-shadow {
+    text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+  
+  .bg-gradient-primary {
+    background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+  }
+  
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Smooth animations */
+.animate-fadeInUp {
+  animation: fadeInUp 0.5s ease-out;
+}
+
+.animate-slideInFromTop {
+  animation: slideInFromTop 0.5s ease-out;
+}
+
+/* Custom focus styles for accessibility */
+.focus-visible:focus {
+  outline: 2px solid #16a34a;
+  outline-offset: 2px;
+}
+
+/* Loading states */
+.btn:disabled {
+  @apply opacity-60 cursor-not-allowed;
+}
+
+/* Mobile-first responsive design */
+@media (max-width: 640px) {
+  .container {
+    @apply px-4;
+  }
+}
+
+/* Print styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  .print-break {
+    page-break-inside: avoid;
+  }
+}
