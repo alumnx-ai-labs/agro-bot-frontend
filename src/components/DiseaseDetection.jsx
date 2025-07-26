@@ -1,9 +1,9 @@
 // src/components/DiseaseDetection.jsx
 import React, { useState } from 'react';
 
-const DiseaseDetection = ({ onAnalyze, showLoading, showResults, showError }) => {
-  const [selectedImage, setSelectedImage] = useState(null);
-  const [imageData, setImageData] = useState(null);
+const DiseaseDetection = ({ onAnalyze, isLoading }) => {
+  const [selectedImageData, setSelectedImageData] = useState(null);
+  const [selectedImageUrl, setSelectedImageUrl] = useState(null);
   const [textDescription, setTextDescription] = useState('');
   const [analyzeEnabled, setAnalyzeEnabled] = useState(false);
 
@@ -11,8 +11,8 @@ const DiseaseDetection = ({ onAnalyze, showLoading, showResults, showError }) =>
     const file = event.target.files[0];
     
     if (!file) {
-      setSelectedImage(null);
-      setImageData(null);
+      setSelectedImageData(null);
+      setSelectedImageUrl(null);
       setAnalyzeEnabled(false);
       return;
     }
@@ -32,17 +32,18 @@ const DiseaseDetection = ({ onAnalyze, showLoading, showResults, showError }) =>
     // Convert to base64
     const reader = new FileReader();
     reader.onload = (e) => {
+      // Remove data URL prefix to get pure base64
       const base64Data = e.target.result.split(',')[1];
-      setImageData(base64Data);
-      setSelectedImage(URL.createObjectURL(file));
+      setSelectedImageData(base64Data);
+      setSelectedImageUrl(URL.createObjectURL(file));
       setAnalyzeEnabled(true);
       console.log('✅ Image selected and converted to base64');
     };
 
     reader.onerror = () => {
       alert('Error reading image file.');
-      setSelectedImage(null);
-      setImageData(null);
+      setSelectedImageData(null);
+      setSelectedImageUrl(null);
       setAnalyzeEnabled(false);
     };
 
@@ -50,87 +51,106 @@ const DiseaseDetection = ({ onAnalyze, showLoading, showResults, showError }) =>
   };
 
   const analyzeImage = async () => {
-    if (!imageData) {
+    if (!selectedImageData) {
       alert('Please select an image first.');
       return;
     }
 
-    showLoading('Analyzing your crop image...');
-
     const requestData = {
       inputType: 'image',
-      content: imageData,
+      content: selectedImageData,
+      userId: getUserId(),
       language: 'en',
-      textDescription: textDescription
+      textDescription: textDescription.trim(),
+      farmSettings: getFarmSettings()
     };
 
     console.log('📤 Sending analysis request...');
+    await onAnalyze(requestData);
+  };
 
-    const result = await onAnalyze(requestData);
-
-    if (result.success) {
-      console.log('✅ Analysis successful:', result.data);
-      showResults(result.data, 'Disease Analysis Results');
-    } else {
-      console.error('❌ Analysis failed:', result.error);
-      showError(result.error);
+  // Helper functions matching the original code
+  const getUserId = () => {
+    let userId = localStorage.getItem('farmerAssistantUserId');
+    if (!userId) {
+      userId = 'user_' + Math.random().toString(36).substr(2, 9);
+      localStorage.setItem('farmerAssistantUserId', userId);
     }
+    return userId;
+  };
+
+  const getFarmSettings = () => {
+    const savedSettings = localStorage.getItem('farmSettings');
+    if (savedSettings) {
+      return JSON.parse(savedSettings);
+    }
+    
+    // Return defaults if no settings saved
+    return {
+      cropType: 'Mosambi',
+      acreage: 15,
+      sowingDate: '2022-01-01',
+      currentStage: 'Fruit Development',
+      farmerName: 'Vijender',
+      soilType: 'A',
+      currentChallenges: 'Currently there are no challenges.',
+      preferredLanguages: ['English', 'Telugu']
+    };
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-lg p-6">
-      <div className="space-y-6">
+    <div className="mode-section active">
+      <div className="input-section">
         {/* Image Upload */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+        <div className="input-group">
+          <label 
+            htmlFor="imageInput" 
+            className="btn btn-primary"
+          >
             📸 Upload Crop Image
+            <input
+              id="imageInput"
+              type="file"
+              accept="image/*"
+              onChange={handleImageSelection}
+              style={{ display: 'none' }}
+            />
           </label>
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handleImageSelection}
-            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
-          />
         </div>
 
         {/* Image Preview */}
-        {selectedImage && (
-          <div className="mt-4">
-            <p className="text-sm font-medium text-gray-700 mb-2">Selected Image:</p>
-            <img
-              src={selectedImage}
-              alt="Selected crop"
-              className="max-w-full h-64 object-cover rounded-lg border-2 border-gray-200"
-            />
+        {selectedImageUrl && (
+          <div className="input-group">
+            <p className="text-lg font-semibold text-green-700 mb-3">Selected Image:</p>
+            <div style={{ border: '2px solid #e0e0e0', borderRadius: '10px', overflow: 'hidden' }}>
+              <img
+                src={selectedImageUrl}
+                alt="Selected crop"
+                style={{ width: '100%', maxHeight: '400px', objectFit: 'contain', background: '#f8f9fa' }}
+              />
+            </div>
           </div>
         )}
 
         {/* Text Description */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Describe any symptoms you notice (optional):
-          </label>
+        <div className="input-group">
           <textarea
             value={textDescription}
             onChange={(e) => setTextDescription(e.target.value)}
-            placeholder="e.g., Brown spots on leaves, yellowing of edges..."
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-            rows={4}
+            placeholder="Describe any symptoms you notice (optional)..."
           />
         </div>
 
         {/* Analyze Button */}
-        <button
-          onClick={analyzeImage}
-          disabled={!analyzeEnabled}
-          className={`w-full py-3 px-4 rounded-lg font-semibold transition-colors ${
-            analyzeEnabled
-              ? 'bg-green-600 text-white hover:bg-green-700'
-              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-          }`}
-        >
-          🔍 Analyze Crop
-        </button>
+        <div className="input-group">
+          <button
+            onClick={analyzeImage}
+            disabled={!analyzeEnabled || isLoading}
+            className="btn btn-success"
+          >
+            {isLoading ? '⏳ Processing...' : '🔍 Analyze Crop'}
+          </button>
+        </div>
       </div>
     </div>
   );
