@@ -1,7 +1,7 @@
-// src/components/GovernmentSchemes.jsx
+// src/components/FarmAIConsultant.jsx
 import React, { useState } from 'react';
 
-const GovernmentSchemes = ({ 
+const FarmAIConsultant = ({ 
   onAnalyze, 
   isLoading, 
   voiceSupport, 
@@ -9,47 +9,33 @@ const GovernmentSchemes = ({
   onStopRecording, 
   onVoiceQuery, 
   isRecording, 
-  recordedAudio
+  recordedAudio,
+  selectedSME,
+  setSelectedSME,
+  smeOptions
 }) => {
   const [query, setQuery] = useState('');
 
   const exampleQueries = [
-    { text: 'Irrigation Subsidies', query: 'What subsidies are available for drip irrigation?' },
-    { text: 'PM-KISAN Scheme', query: 'Tell me about PM-KISAN scheme eligibility and benefits' },
-    { text: 'Dairy Farming Loans', query: 'What are the loan schemes for dairy farming?' },
-    { text: 'Organic Farming Support', query: 'Organic farming certification and support schemes' }
+    { text: 'Pest Control', query: 'What are the best pest control methods for my crop?' },
+    { text: 'Fertilizer Advice', query: 'What fertilizers should I use for better yield?' },
+    { text: 'Disease Prevention', query: 'How can I prevent common diseases in my crop?' },
+    { text: 'Harvest Timing', query: 'When is the best time to harvest my crop?' }
   ];
 
   const handleExampleClick = (exampleQuery) => {
     setQuery(exampleQuery);
   };
 
-  const handleTextSubmit = async (e) => {
-    e.preventDefault();
-    
-    if (!query.trim()) {
-      alert('Please enter your question about government schemes.');
-      return;
-    }
-
-const requestData = {
-  inputType: 'text',
-  content: query.trim(),
-  queryType: 'government_schemes',
-  language: 'en'
-};
-
-    await onAnalyze(requestData);
-  };
-
   const handleVoiceSubmit = async () => {
     if (recordedAudio) {
-const requestData = {
-  inputType: 'audio',
-  content: recordedAudio,
-  queryType: 'government_schemes',
-  language: 'en'
-};
+      const requestData = {
+        inputType: 'audio',
+        content: recordedAudio,
+        queryType: 'sme_consultation',
+        sme_expert: selectedSME !== 'none' ? selectedSME : undefined,
+        language: 'en'
+      };
       
       await onVoiceQuery(requestData.content);
     }
@@ -58,7 +44,8 @@ const requestData = {
   const handleKeyPress = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleTextSubmit(e);
+      // For Farm AI Consultant, we'll trigger voice submit if audio is available
+      // or you can add text submission logic here if needed
     }
   };
 
@@ -146,12 +133,6 @@ const requestData = {
     flexWrap: 'wrap'
   };
 
-  const textButtonStyle = {
-    ...buttonStyle,
-    background: '#28a745',
-    color: 'white'
-  };
-
   const voiceButtonStyle = {
     ...buttonStyle,
     background: isRecording ? '#dc3545' : '#667eea',
@@ -233,49 +214,55 @@ const requestData = {
     }}>
       <div style={inputSectionStyle}>
         <div style={inputGroupStyle}>
-          <label htmlFor="schemeQuery" style={labelStyle}>
-            Ask about Government Schemes:
+          <label htmlFor="consultantQuery" style={labelStyle}>
+            Ask our Farm AI Consultant:
           </label>
           <textarea
-            id="schemeQueryInput"
+            id="consultantQueryInput"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder="e.g., What are the subsidies available for organic farming? What schemes are there for small farmers? Tell me about PM-KISAN scheme..."
+            placeholder="e.g., What's the best fertilizer for my crop? How to control pests naturally? When should I harvest? Best irrigation practices..."
             style={{
               ...textareaStyle,
-              ...(document.activeElement?.id === 'schemeQueryInput' ? textareaFocusStyle : {})
+              ...(document.activeElement?.id === 'consultantQueryInput' ? textareaFocusStyle : {})
             }}
             onFocus={(e) => e.target.style.borderColor = '#4a7c59'}
             onBlur={(e) => e.target.style.borderColor = '#e0e0e0'}
           />
         </div>
 
+        {/* SME Dropdown Section */}
+        <div style={inputGroupStyle}>
+          <label htmlFor="smeSelect" style={labelStyle}>
+            👨‍🌾 Select Subject Matter Expert:
+          </label>
+          <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+            <select
+              id="smeSelect"
+              value={selectedSME}
+              onChange={(e) => setSelectedSME(e.target.value)}
+              style={{
+                ...selectStyle,
+                ...(document.activeElement?.id === 'smeSelect' ? selectFocusStyle : {})
+              }}
+              onFocus={(e) => e.target.style.borderColor = '#4a7c59'}
+              onBlur={(e) => e.target.style.borderColor = '#e0e0e0'}
+            >
+              {smeOptions && smeOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <p style={helperTextStyle}>
+            Choose an expert to get specialized advice for your specific crop
+          </p>
+        </div>
+
         <div style={inputGroupStyle}>
           <div style={buttonContainerStyle}>
-            {/* Text Query Button */}
-            <button
-              onClick={handleTextSubmit}
-              disabled={isLoading || !query.trim()}
-              style={{
-                ...textButtonStyle,
-                ...(isLoading || !query.trim() ? buttonDisabledStyle : {})
-              }}
-              onMouseEnter={(e) => {
-                if (!isLoading && query.trim()) {
-                  Object.assign(e.target.style, buttonHoverStyle);
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isLoading && query.trim()) {
-                  e.target.style.transform = 'none';
-                  e.target.style.boxShadow = '0 5px 15px rgba(0,0,0,0.1)';
-                }
-              }}
-            >
-              🔍 Search Schemes
-            </button>
-
             {/* Voice Recording Button */}
             {voiceSupport && (
               <>
@@ -298,7 +285,7 @@ const requestData = {
                     }
                   }}
                 >
-                  {isRecording ? '⏹️ Stop Recording' : '🎤 Voice Query'}
+                  {isRecording ? '⏹️ Stop Recording' : '🎤 Voice Consultation'}
                 </button>
 
                 {/* Submit Voice Query Button */}
@@ -322,7 +309,7 @@ const requestData = {
                       }
                     }}
                   >
-                    🚀 Submit Voice Query
+                    🚀 Submit Consultation
                   </button>
                 )}
               </>
@@ -332,14 +319,14 @@ const requestData = {
           {/* Recording Status */}
           {isRecording && (
             <div style={recordingStatusStyle}>
-              🔴 Recording... Speak your question about government schemes
+              🔴 Recording... Ask your farming question to the AI consultant
             </div>
           )}
 
           {/* Recorded Audio Status */}
           {recordedAudio && !isRecording && (
             <div style={recordedStatusStyle}>
-              ✅ Voice recorded! Click "Submit Voice Query" to process.
+              ✅ Voice recorded! Click "Submit Consultation" to get expert advice.
             </div>
           )}
         </div>
@@ -351,7 +338,7 @@ const requestData = {
             color: '#4a7c59',
             margin: '0 0 15px 0'
           }}>
-            <strong>Example queries:</strong>
+            <strong>Example consultations:</strong>
           </p>
           <div style={exampleChipsStyle}>
             {exampleQueries.map((example, index) => (
@@ -378,4 +365,4 @@ const requestData = {
   );
 };
 
-export default GovernmentSchemes;
+export default FarmAIConsultant;

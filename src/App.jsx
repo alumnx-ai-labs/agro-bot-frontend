@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import DiseaseDetection from './components/DiseaseDetection';
 import GovernmentSchemes from './components/GovernmentSchemes';
+import FarmAIConsultant from './components/FarmAIConsultant';
 import Settings from './components/Settings';
 
 function App() {
@@ -111,11 +112,13 @@ function App() {
     setResults(null);
     setError(null);
     
-    if (currentMode === 'disease') {
-      startDiseaseAnalysisThoughts();
-    } else if (currentMode === 'schemes') {
-      startSchemesQueryThoughts();
-    }
+if (currentMode === 'disease') {
+  startDiseaseAnalysisThoughts();
+} else if (currentMode === 'schemes') {
+  startSchemesQueryThoughts();
+} else if (currentMode === 'consultant') {
+  startConsultantThoughts();
+}
   };
 
   const startDiseaseAnalysisThoughts = () => {
@@ -133,6 +136,22 @@ function App() {
       }, index * 2000);
     });
   };
+
+const startConsultantThoughts = () => {
+  const thoughts = [
+    "🤔 Connecting with AI farming expert...",
+    "🧠 Analyzing your farming question...",
+    "📖 Consulting agricultural knowledge base...",
+    "✅ Expert consultation complete! Preparing advice..."
+  ];
+
+  setManagerThoughts([]);
+  thoughts.forEach((thought, index) => {
+    setTimeout(() => {
+      setManagerThoughts(prev => [...prev, thought]);
+    }, index * 2000);
+  });
+};
 
   const startSchemesQueryThoughts = () => {
     const thoughts = [
@@ -193,17 +212,18 @@ function App() {
     reader.readAsDataURL(audioBlob);
   };
 
-  const handleVoiceQuery = async (audioData) => {
-    const requestData = {
-      inputType: 'audio',
-      content: audioData,
-      queryType: 'government_schemes',
-      language: 'en',
-      ...(selectedSME && { sme_agent: selectedSME }) // Add SME agent if selected
-    };
-    
-    await handleAnalyze(requestData);
+const handleVoiceQuery = async (audioData) => {
+  const queryType = currentMode === 'consultant' ? 'sme_consultation' : 'government_schemes';
+  const requestData = {
+    inputType: 'audio',
+    content: audioData,
+    queryType: queryType,
+    language: 'en',
+    ...(selectedSME && currentMode === 'consultant' && { sme_agent: selectedSME }) // Add SME agent if selected for consultant mode
   };
+  
+  await handleAnalyze(requestData);
+};
 
   const handleAnalyze = async (requestData) => {
     if (requestData.queryType === 'government_schemes') {
@@ -220,13 +240,13 @@ function App() {
       console.log('📤 Sending analysis request...');
 
       // Add SME agent to request data if selected and it's a government schemes query
-      const finalRequestData = {
-        ...requestData,
-        userId: getUserId(),
-        farmSettings: getFarmSettings(),
-        ...(requestData.inputType === 'image' ? { image_data: requestData.content } : {}),
-        ...(selectedSME && requestData.queryType === 'government_schemes' ? { sme_agent: selectedSME } : {})
-      };
+const finalRequestData = {
+  ...requestData,
+  userId: getUserId(),
+  farmSettings: getFarmSettings(),
+  ...(requestData.inputType === 'image' ? { image_data: requestData.content } : {}),
+  ...(selectedSME && requestData.queryType === 'sme_consultation' ? { sme_agent: selectedSME } : {})
+};
 
       const response = await fetch('https://us-central1-agro-bot-1212.cloudfunctions.net/new_farmer-assistant/analyze', {
         method: 'POST',
@@ -650,11 +670,12 @@ const renderResults = () => {
           justifyContent: 'center', 
           flexWrap: 'wrap' 
         }}>
-          {[
-            { mode: 'disease', label: '🔬 Disease Detection', color: '#4a7c59' },
-            { mode: 'schemes', label: '🤖 Farming AI Consultant', color: '#667eea' },
-            { mode: 'weather', label: '🌤️ Weather Stations', color: '#0891b2' }
-          ].map(({ mode, label, color }) => (
+{[
+  { mode: 'disease', label: '🔬 Disease Detection', color: '#4a7c59' },
+  { mode: 'schemes', label: '📋 Government Schemes', color: '#667eea' },
+  { mode: 'consultant', label: '🤖 Farm AI Consultants', color: '#28a745' },
+  { mode: 'weather', label: '🌤️ Weather Stations', color: '#0891b2' }
+].map(({ mode, label, color }) => (
             <button
               key={mode}
               onClick={() => switchMode(mode)}
@@ -676,20 +697,33 @@ const renderResults = () => {
           )}
 
           {currentMode === 'schemes' && (
-            <GovernmentSchemes 
-              onAnalyze={handleAnalyze} 
-              isLoading={isLoading}
-              voiceSupport={true}
-              onStartRecording={startRecording}
-              onStopRecording={stopRecording}
-              onVoiceQuery={handleVoiceQuery}
-              isRecording={isRecording}
-              recordedAudio={recordedAudio}
-              selectedSME={selectedSME}
-              setSelectedSME={setSelectedSME}
-              smeOptions={smeOptions}
-            />
-          )}
+  <GovernmentSchemes 
+    onAnalyze={handleAnalyze} 
+    isLoading={isLoading}
+    voiceSupport={true}
+    onStartRecording={startRecording}
+    onStopRecording={stopRecording}
+    onVoiceQuery={handleVoiceQuery}
+    isRecording={isRecording}
+    recordedAudio={recordedAudio}
+  />
+)}
+
+{currentMode === 'consultant' && (
+  <FarmAIConsultant 
+    onAnalyze={handleAnalyze} 
+    isLoading={isLoading}
+    voiceSupport={true}
+    onStartRecording={startRecording}
+    onStopRecording={stopRecording}
+    onVoiceQuery={handleVoiceQuery}
+    isRecording={isRecording}
+    recordedAudio={recordedAudio}
+    selectedSME={selectedSME}
+    setSelectedSME={setSelectedSME}
+    smeOptions={smeOptions}
+  />
+)}
 
           {currentMode === 'weather' && (
             <div style={{ 
