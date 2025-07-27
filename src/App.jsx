@@ -880,10 +880,10 @@ if (results.agent_response && results.agent_response.type === 'predictive_adviso
           position: 'relative'
         }}>
           <h1 style={{ color: '#4a7c59', marginBottom: '10px', fontSize: '2.5rem', margin: '0 0 10px 0' }}>
-            🌱 Farmer Assistant MVP
+            🌱 Krishi Vikas
           </h1>
           <p style={{ color: '#666', fontSize: '1.1rem', margin: '0' }}>
-            AI-Powered Crop Disease Detection & Agricultural Support
+            AI Powered solution for Precision Farming to improve yields and incomes of farmers
           </p>
           <button
             onClick={() => setIsSettingsOpen(true)}
