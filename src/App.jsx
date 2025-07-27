@@ -5,6 +5,7 @@ import GovernmentSchemes from './components/GovernmentSchemes';
 import FarmAIConsultant from './components/FarmAIConsultant';
 import Settings from './components/Settings';
 import FarmPredictiveAdvisories from './components/FarmPredictiveAdvisories';
+import WeatherStations from './components/WeatherStations';
 
 function App() {
   const [currentMode, setCurrentMode] = useState('disease');
@@ -921,11 +922,12 @@ if (results.agent_response && results.agent_response.type === 'predictive_adviso
           justifyContent: 'center',
           flexWrap: 'wrap'
         }}>
-          {[
+           {[
             { mode: 'disease', label: '🔬 Disease Detection', color: '#4a7c59' },
             { mode: 'schemes', label: '📋 Government Schemes', color: '#667eea' },
             { mode: 'consultant', label: '🤖 Farm AI Consultants', color: '#28a745' },
-            { mode: 'predictive', label: '🔮 Farm Predictive Advisories', color: '#0891b2' } 
+            { mode: 'predictive', label: '🔮 Farm Predictive Advisories', color: '#0891b2' },
+            { mode: 'weather', label: '🌦️ Crowdpooling Weather Data', color: '#ff6b35' }
           ].map(({ mode, label, color }) => (
             <button
               key={mode}
@@ -970,12 +972,16 @@ if (results.agent_response && results.agent_response.type === 'predictive_adviso
   />
 )}
 
-          {currentMode === 'predictive' && (
+            {currentMode === 'predictive' && (
   <FarmPredictiveAdvisories
     onAnalyze={handleAnalyze}
     isLoading={isLoading}
   />
 )}
+
+          {currentMode === 'weather' && (
+            <WeatherStations />
+          )}
 
           {/* Loading Section */}
           {isLoading && (
@@ -1077,7 +1083,8 @@ if (results.agent_response && results.agent_response.type === 'predictive_adviso
           marginTop: '30px',
           fontSize: '0.9rem'
         }}>
-          <p>Phase 1 MVP - Disease Detection, Government Schemes, AI Consultants & Predictive Advisories</p>
+                  <p>Phase 1 MVP - Disease Detection, Government Schemes, AI Consultants, Predictive Advisories & Weather Data</p>
+
         </footer>
       </div>
 
