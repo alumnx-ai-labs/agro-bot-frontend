@@ -9,7 +9,10 @@ const GovernmentSchemes = ({
   onStopRecording, 
   onVoiceQuery, 
   isRecording, 
-  recordedAudio 
+  recordedAudio,
+  selectedSME,
+  setSelectedSME,
+  smeOptions
 }) => {
   const [query, setQuery] = useState('');
 
@@ -36,6 +39,7 @@ const GovernmentSchemes = ({
       inputType: 'text',
       content: query.trim(),
       queryType: 'government_schemes',
+      sme_expert: selectedSME !== 'none' ? selectedSME : undefined,
       language: 'en'
     };
 
@@ -44,7 +48,15 @@ const GovernmentSchemes = ({
 
   const handleVoiceSubmit = async () => {
     if (recordedAudio) {
-      await onVoiceQuery(recordedAudio);
+      const requestData = {
+        inputType: 'audio',
+        content: recordedAudio,
+        queryType: 'government_schemes',
+        sme_expert: selectedSME !== 'none' ? selectedSME : undefined,
+        language: 'en'
+      };
+      
+      await onVoiceQuery(requestData.content);
     }
   };
 
@@ -86,6 +98,24 @@ const GovernmentSchemes = ({
   };
 
   const textareaFocusStyle = {
+    borderColor: '#4a7c59'
+  };
+
+  const selectStyle = {
+    width: '300px',
+    padding: '12px 15px',
+    border: '2px solid #e0e0e0',
+    borderRadius: '10px',
+    fontSize: '1rem',
+    fontFamily: 'inherit',
+    background: 'white',
+    cursor: 'pointer',
+    transition: 'border-color 0.3s ease',
+    outline: 'none',
+    boxSizing: 'border-box'
+  };
+
+  const selectFocusStyle = {
     borderColor: '#4a7c59'
   };
 
@@ -191,6 +221,13 @@ const GovernmentSchemes = ({
     transform: 'translateY(-1px)'
   };
 
+  const helperTextStyle = {
+    fontSize: '0.85rem',
+    color: '#666',
+    marginTop: '5px',
+    fontStyle: 'italic'
+  };
+
   return (
     <div style={{ 
       background: 'white', 
@@ -217,6 +254,35 @@ const GovernmentSchemes = ({
             onFocus={(e) => e.target.style.borderColor = '#4a7c59'}
             onBlur={(e) => e.target.style.borderColor = '#e0e0e0'}
           />
+        </div>
+
+        {/* SME Dropdown Section */}
+        <div style={inputGroupStyle}>
+          <label htmlFor="smeSelect" style={labelStyle}>
+            👨‍🌾 Consult Subject Matter Expert (Optional):
+          </label>
+          <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+            <select
+              id="smeSelect"
+              value={selectedSME}
+              onChange={(e) => setSelectedSME(e.target.value)}
+              style={{
+                ...selectStyle,
+                ...(document.activeElement?.id === 'smeSelect' ? selectFocusStyle : {})
+              }}
+              onFocus={(e) => e.target.style.borderColor = '#4a7c59'}
+              onBlur={(e) => e.target.style.borderColor = '#e0e0e0'}
+            >
+              {smeOptions && smeOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <p style={helperTextStyle}>
+            Select an expert to get specialized advice for specific crops
+          </p>
         </div>
 
         <div style={inputGroupStyle}>

@@ -14,12 +14,20 @@ function App() {
   const [currentSessionId, setCurrentSessionId] = useState(null);
   const [managerThoughts, setManagerThoughts] = useState([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [selectedSME, setSelectedSME] = useState(''); // New state for SME selection
 
   // Voice recording states
   const [isRecording, setIsRecording] = useState(false);
   const [recordedAudio, setRecordedAudio] = useState(null);
   const [mediaRecorder, setMediaRecorder] = useState(null);
   const [audioChunks, setAudioChunks] = useState([]);
+
+  // SME options
+  const smeOptions = [
+    { value: '', label: 'Select an SME (Optional)' },
+    { value: 'op-awasthi-mosambi', label: 'OP Awasthi - Mosambi' },
+    { value: 'ms-swaminathan-wheat', label: 'MS Swaminathan - Wheat' }
+  ];
 
   useEffect(() => {
     checkHealth();
@@ -86,6 +94,7 @@ function App() {
     setError(null);
     setCurrentSessionId(null);
     setManagerThoughts([]);
+    setSelectedSME(''); // Reset SME selection
     
     // Reset voice recording states
     setIsRecording(false);
@@ -189,7 +198,8 @@ function App() {
       inputType: 'audio',
       content: audioData,
       queryType: 'government_schemes',
-      language: 'en'
+      language: 'en',
+      ...(selectedSME && { sme_agent: selectedSME }) // Add SME agent if selected
     };
     
     await handleAnalyze(requestData);
@@ -209,17 +219,21 @@ function App() {
     try {
       console.log('📤 Sending analysis request...');
 
+      // Add SME agent to request data if selected and it's a government schemes query
+      const finalRequestData = {
+        ...requestData,
+        userId: getUserId(),
+        farmSettings: getFarmSettings(),
+        ...(requestData.inputType === 'image' ? { image_data: requestData.content } : {}),
+        ...(selectedSME && requestData.queryType === 'government_schemes' ? { sme_agent: selectedSME } : {})
+      };
+
       const response = await fetch('https://us-central1-agro-bot-1212.cloudfunctions.net/new_farmer-assistant/analyze', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          ...requestData,
-          userId: getUserId(),
-          farmSettings: getFarmSettings(),
-          ...(requestData.inputType === 'image' ? { image_data: requestData.content } : {})
-        })
+        body: JSON.stringify(finalRequestData)
       });
 
       const result = await response.json();
@@ -671,6 +685,9 @@ const renderResults = () => {
               onVoiceQuery={handleVoiceQuery}
               isRecording={isRecording}
               recordedAudio={recordedAudio}
+              selectedSME={selectedSME}
+              setSelectedSME={setSelectedSME}
+              smeOptions={smeOptions}
             />
           )}
 
