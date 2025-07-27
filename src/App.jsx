@@ -24,11 +24,11 @@ function App() {
   const [audioChunks, setAudioChunks] = useState([]);
 
   // SME options
-  const smeOptions = [
-    { value: '', label: 'Select an SME (Optional)' },
-    { value: 'op-awasthi-mosambi', label: 'OP Awasthi - Mosambi' },
-    { value: 'ms-swaminathan-wheat', label: 'MS Swaminathan - Wheat' }
-  ];
+const smeOptions = [
+  { value: '', label: 'Select an SME (Required)' },
+  { value: 'op-awasthi-mosambi', label: 'OP Awasthi - Mosambi' },
+  { value: 'ms-swaminathan-wheat', label: 'MS Swaminathan - Wheat' }
+];
 
   useEffect(() => {
     checkHealth();
@@ -67,7 +67,7 @@ function App() {
         return getDefaultSettings();
       }
     }
-    
+
     return getDefaultSettings();
   };
 
@@ -96,7 +96,7 @@ function App() {
     setCurrentSessionId(null);
     setManagerThoughts([]);
     setSelectedSME(''); // Reset SME selection
-    
+
     // Reset voice recording states
     setIsRecording(false);
     setRecordedAudio(null);
@@ -111,24 +111,24 @@ function App() {
     setLoadingText(message);
     setResults(null);
     setError(null);
-    
-if (currentMode === 'disease') {
-  startDiseaseAnalysisThoughts();
-} else if (currentMode === 'schemes') {
-  startSchemesQueryThoughts();
-} else if (currentMode === 'consultant') {
-  startConsultantThoughts();
-}
+
+    if (currentMode === 'disease') {
+      startDiseaseAnalysisThoughts();
+    } else if (currentMode === 'schemes') {
+      startSchemesQueryThoughts();
+    } else if (currentMode === 'consultant') {
+      startConsultantThoughts();
+    }
   };
 
   const startDiseaseAnalysisThoughts = () => {
     const thoughts = [
       "🤔 Analyzing your crop image...",
-      "🎯 Identifying potential issues...", 
+      "🎯 Identifying potential issues...",
       "🔬 Calling disease detection specialist...",
       "✅ Analysis complete! Preparing response..."
     ];
-    
+
     setManagerThoughts([]);
     thoughts.forEach((thought, index) => {
       setTimeout(() => {
@@ -137,21 +137,21 @@ if (currentMode === 'disease') {
     });
   };
 
-const startConsultantThoughts = () => {
-  const thoughts = [
-    "🤔 Connecting with AI farming expert...",
-    "🧠 Analyzing your farming question...",
-    "📖 Consulting agricultural knowledge base...",
-    "✅ Expert consultation complete! Preparing advice..."
-  ];
+  const startConsultantThoughts = () => {
+    const thoughts = [
+      "🤔 Connecting with AI farming expert...",
+      "🧠 Analyzing your farming question...",
+      "📖 Consulting agricultural knowledge base...",
+      "✅ Expert consultation complete! Preparing advice..."
+    ];
 
-  setManagerThoughts([]);
-  thoughts.forEach((thought, index) => {
-    setTimeout(() => {
-      setManagerThoughts(prev => [...prev, thought]);
-    }, index * 2000);
-  });
-};
+    setManagerThoughts([]);
+    thoughts.forEach((thought, index) => {
+      setTimeout(() => {
+        setManagerThoughts(prev => [...prev, thought]);
+      }, index * 2000);
+    });
+  };
 
   const startSchemesQueryThoughts = () => {
     const thoughts = [
@@ -212,18 +212,18 @@ const startConsultantThoughts = () => {
     reader.readAsDataURL(audioBlob);
   };
 
-const handleVoiceQuery = async (audioData) => {
-  const queryType = currentMode === 'consultant' ? 'sme_consultation' : 'government_schemes';
-  const requestData = {
-    inputType: 'audio',
-    content: audioData,
-    queryType: queryType,
-    language: 'en',
-    ...(selectedSME && currentMode === 'consultant' && { sme_agent: selectedSME }) // Add SME agent if selected for consultant mode
+  const handleVoiceQuery = async (audioData) => {
+    const queryType = currentMode === 'consultant' ? 'sme_consultation' : 'government_schemes';
+    const requestData = {
+      inputType: 'audio',
+      content: audioData,
+      queryType: queryType,
+      language: 'en',
+      ...(selectedSME && currentMode === 'consultant' && { sme_agent: selectedSME }) // Add SME agent if selected for consultant mode
+    };
+
+    await handleAnalyze(requestData);
   };
-  
-  await handleAnalyze(requestData);
-};
 
   const handleAnalyze = async (requestData) => {
     if (requestData.queryType === 'government_schemes') {
@@ -240,13 +240,13 @@ const handleVoiceQuery = async (audioData) => {
       console.log('📤 Sending analysis request...');
 
       // Add SME agent to request data if selected and it's a government schemes query
-const finalRequestData = {
-  ...requestData,
-  userId: getUserId(),
-  farmSettings: getFarmSettings(),
-  ...(requestData.inputType === 'image' ? { image_data: requestData.content } : {}),
-  ...(selectedSME && requestData.queryType === 'sme_consultation' ? { sme_agent: selectedSME } : {})
-};
+      const finalRequestData = {
+        ...requestData,
+        userId: getUserId(),
+        farmSettings: getFarmSettings(),
+        ...(requestData.inputType === 'image' ? { image_data: requestData.content } : {}),
+        ...(selectedSME && requestData.queryType === 'sme_consultation' ? { sme_agent: selectedSME } : {})
+      };
 
       const response = await fetch('https://us-central1-agro-bot-1212.cloudfunctions.net/new_farmer-assistant/analyze', {
         method: 'POST',
@@ -279,33 +279,33 @@ const finalRequestData = {
     }
   };
 
-const renderResults = () => {
-  if (!results) return null;
+  const renderResults = () => {
+    if (!results) return null;
 
-  console.log('Full results object:', results);
+    console.log('Full results object:', results);
 
-  // Handle government schemes response - prioritize message-only responses
-  if (results.final_response && results.final_response.message) {
-    return renderMessageOnly(results.final_response.message);
-  }
-  
-  if (results.agent_response && results.agent_response.message && !results.agent_response.schemes) {
-    return renderMessageOnly(results.agent_response.message);
-  }
+    // Handle government schemes response - prioritize message-only responses
+    if (results.final_response && results.final_response.message) {
+      return renderMessageOnly(results.final_response.message);
+    }
 
-  if (results.agent_response && (results.agent_response.message || results.agent_response.schemes)) {
-    return renderSchemesResponse(results.agent_response);
-  }
+    if (results.agent_response && results.agent_response.message && !results.agent_response.schemes) {
+      return renderMessageOnly(results.agent_response.message);
+    }
+
+    if (results.agent_response && (results.agent_response.message || results.agent_response.schemes)) {
+      return renderSchemesResponse(results.agent_response);
+    }
 
     // Handle disease analysis responses (existing code)
     if (results.final_response && results.final_response.detailed_analysis) {
       return renderDiseaseAnalysis(results.final_response.detailed_analysis);
     }
-    
+
     if (results.final_response && results.final_response.type === 'disease_analysis' && results.final_response.analysis) {
       return renderDiseaseAnalysis(results.final_response.analysis);
     }
-    
+
     if (results.agent_response && results.agent_response.type === 'disease_analysis' && results.agent_response.analysis) {
       return renderDiseaseAnalysis(results.agent_response.analysis);
     }
@@ -328,21 +328,21 @@ const renderResults = () => {
   };
 
   const renderMessageOnly = (message) => {
-  const formatText = (text) => {
-    return text
-      .replace(/\n/g, '<br>')
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.*?)\*/g, '<em>$1</em>');
-  };
+    const formatText = (text) => {
+      return text
+        .replace(/\n/g, '<br>')
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>');
+    };
 
-  return (
-    <div style={{ background: 'white', borderRadius: '15px', padding: '25px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}>
-      <div style={{ fontSize: '1.05rem', lineHeight: '1.6' }}>
-        <div dangerouslySetInnerHTML={{ __html: formatText(message) }} />
+    return (
+      <div style={{ background: 'white', borderRadius: '15px', padding: '25px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}>
+        <div style={{ fontSize: '1.05rem', lineHeight: '1.6' }}>
+          <div dangerouslySetInnerHTML={{ __html: formatText(message) }} />
+        </div>
       </div>
-    </div>
-  );
-};
+    );
+  };
 
   const renderSchemesResponse = (agentResponse) => {
     const formatText = (text) => {
@@ -452,7 +452,7 @@ const renderResults = () => {
         </div>
       );
     }
-    
+
     const getConfidenceStyle = (confidence) => {
       const styles = {
         high: { background: '#d4edda', color: '#155724', border: '1px solid #c3e6cb' },
@@ -528,12 +528,12 @@ const renderResults = () => {
             </h4>
             <div>
               {analysis.organic_solutions.map((solution, index) => (
-                <div key={index} style={{ 
-                  background: '#f8f9fa', 
-                  padding: '15px', 
-                  borderRadius: '8px', 
-                  borderLeft: '4px solid #4a7c59', 
-                  marginBottom: '15px' 
+                <div key={index} style={{
+                  background: '#f8f9fa',
+                  padding: '15px',
+                  borderRadius: '8px',
+                  borderLeft: '4px solid #4a7c59',
+                  marginBottom: '15px'
                 }}>
                   <h5 style={{ fontWeight: '600', marginBottom: '10px', color: '#2c5530' }}>
                     {solution.name}
@@ -611,19 +611,19 @@ const renderResults = () => {
   };
 
   return (
-    <div style={{ 
-      minHeight: '100vh', 
+    <div style={{
+      minHeight: '100vh',
       background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
       fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
     }}>
       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '20px' }}>
         {/* Header */}
-        <header style={{ 
-          textAlign: 'center', 
-          background: 'white', 
-          padding: '30px', 
-          borderRadius: '15px', 
-          boxShadow: '0 10px 30px rgba(0,0,0,0.1)', 
+        <header style={{
+          textAlign: 'center',
+          background: 'white',
+          padding: '30px',
+          borderRadius: '15px',
+          boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
           marginBottom: '30px',
           position: 'relative'
         }}>
@@ -663,19 +663,19 @@ const renderResults = () => {
         </header>
 
         {/* Mode Selection */}
-        <div style={{ 
-          display: 'flex', 
-          gap: '15px', 
-          marginBottom: '30px', 
-          justifyContent: 'center', 
-          flexWrap: 'wrap' 
+        <div style={{
+          display: 'flex',
+          gap: '15px',
+          marginBottom: '30px',
+          justifyContent: 'center',
+          flexWrap: 'wrap'
         }}>
-{[
-  { mode: 'disease', label: '🔬 Disease Detection', color: '#4a7c59' },
-  { mode: 'schemes', label: '📋 Government Schemes', color: '#667eea' },
-  { mode: 'consultant', label: '🤖 Farm AI Consultants', color: '#28a745' },
-  { mode: 'weather', label: '🌤️ Weather Stations', color: '#0891b2' }
-].map(({ mode, label, color }) => (
+          {[
+            { mode: 'disease', label: '🔬 Disease Detection', color: '#4a7c59' },
+            { mode: 'schemes', label: '📋 Government Schemes', color: '#667eea' },
+            { mode: 'consultant', label: '🤖 Farm AI Consultants', color: '#28a745' },
+            { mode: 'weather', label: '🌤️ Weather Stations', color: '#0891b2' }
+          ].map(({ mode, label, color }) => (
             <button
               key={mode}
               onClick={() => switchMode(mode)}
@@ -697,28 +697,22 @@ const renderResults = () => {
           )}
 
           {currentMode === 'schemes' && (
-  <GovernmentSchemes 
-    onAnalyze={handleAnalyze} 
-    isLoading={isLoading}
-    voiceSupport={true}
-    onStartRecording={startRecording}
-    onStopRecording={stopRecording}
-    onVoiceQuery={handleVoiceQuery}
-    isRecording={isRecording}
-    recordedAudio={recordedAudio}
-  />
-)}
+            <GovernmentSchemes
+              onAnalyze={handleAnalyze}
+              isLoading={isLoading}
+              voiceSupport={true}
+              onStartRecording={startRecording}
+              onStopRecording={stopRecording}
+              onVoiceQuery={handleVoiceQuery}
+              isRecording={isRecording}
+              recordedAudio={recordedAudio}
+            />
+          )}
 
 {currentMode === 'consultant' && (
-  <FarmAIConsultant 
-    onAnalyze={handleAnalyze} 
+  <FarmAIConsultant
+    onAnalyze={handleAnalyze}
     isLoading={isLoading}
-    voiceSupport={true}
-    onStartRecording={startRecording}
-    onStopRecording={stopRecording}
-    onVoiceQuery={handleVoiceQuery}
-    isRecording={isRecording}
-    recordedAudio={recordedAudio}
     selectedSME={selectedSME}
     setSelectedSME={setSelectedSME}
     smeOptions={smeOptions}
@@ -726,12 +720,12 @@ const renderResults = () => {
 )}
 
           {currentMode === 'weather' && (
-            <div style={{ 
-              background: 'white', 
-              padding: '30px', 
-              borderRadius: '15px', 
-              boxShadow: '0 10px 30px rgba(0,0,0,0.1)', 
-              textAlign: 'center' 
+            <div style={{
+              background: 'white',
+              padding: '30px',
+              borderRadius: '15px',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
+              textAlign: 'center'
             }}>
               <h2 style={{ color: '#4a7c59', marginBottom: '20px' }}>
                 🌤️ Weather Stations
@@ -742,13 +736,13 @@ const renderResults = () => {
 
           {/* Loading Section */}
           {isLoading && (
-            <div style={{ 
-              background: 'white', 
-              padding: '40px', 
-              borderRadius: '15px', 
-              boxShadow: '0 10px 30px rgba(0,0,0,0.1)', 
-              textAlign: 'center', 
-              marginTop: '30px' 
+            <div style={{
+              background: 'white',
+              padding: '40px',
+              borderRadius: '15px',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
+              textAlign: 'center',
+              marginTop: '30px'
             }}>
               <div style={{
                 width: '50px',
@@ -762,7 +756,7 @@ const renderResults = () => {
               <p style={{ fontSize: '1.2rem', fontWeight: '600', color: '#333', marginBottom: '20px' }}>
                 {loadingText}
               </p>
-              
+
               {managerThoughts.length > 0 && (
                 <div style={{ textAlign: 'left', maxWidth: '400px', margin: '0 auto' }}>
                   {managerThoughts.map((thought, index) => (
@@ -787,11 +781,11 @@ const renderResults = () => {
           {/* Results Section */}
           {results && !isLoading && (
             <div style={{ marginTop: '30px' }}>
-              <h2 style={{ 
-                color: '#4a7c59', 
-                marginBottom: '25px', 
-                textAlign: 'center', 
-                fontSize: '1.8rem' 
+              <h2 style={{
+                color: '#4a7c59',
+                marginBottom: '25px',
+                textAlign: 'center',
+                fontSize: '1.8rem'
               }}>
                 {resultsTitle}
               </h2>
@@ -801,21 +795,21 @@ const renderResults = () => {
 
           {/* Error Section */}
           {error && !isLoading && (
-            <div style={{ 
-              background: 'white', 
-              padding: '30px', 
-              borderRadius: '15px', 
-              boxShadow: '0 10px 30px rgba(0,0,0,0.1)', 
-              textAlign: 'center', 
-              marginTop: '30px' 
+            <div style={{
+              background: 'white',
+              padding: '30px',
+              borderRadius: '15px',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
+              textAlign: 'center',
+              marginTop: '30px'
             }}>
               <h2 style={{ color: '#dc3545', marginBottom: '20px' }}>⚠️ Error</h2>
-              <div style={{ 
-                background: '#f8d7da', 
-                border: '1px solid #f5c6cb', 
-                borderRadius: '8px', 
-                padding: '15px', 
-                marginBottom: '20px' 
+              <div style={{
+                background: '#f8d7da',
+                border: '1px solid #f5c6cb',
+                borderRadius: '8px',
+                padding: '15px',
+                marginBottom: '20px'
               }}>
                 <p style={{ color: '#721c24', margin: 0 }}>{error}</p>
               </div>
@@ -834,11 +828,11 @@ const renderResults = () => {
         </main>
 
         {/* Footer */}
-        <footer style={{ 
-          textAlign: 'center', 
-          color: 'rgba(255, 255, 255, 0.8)', 
-          marginTop: '30px', 
-          fontSize: '0.9rem' 
+        <footer style={{
+          textAlign: 'center',
+          color: 'rgba(255, 255, 255, 0.8)',
+          marginTop: '30px',
+          fontSize: '0.9rem'
         }}>
           <p>Phase 1 MVP - Disease Detection, Government Schemes & Weather Monitoring</p>
         </footer>
@@ -854,14 +848,14 @@ const renderResults = () => {
       </style>
 
       {/* Settings Modal */}
-        <Settings 
-          isOpen={isSettingsOpen}
-          onClose={() => setIsSettingsOpen(false)}
-          onSave={(settings) => {
-            console.log('✅ Farm settings saved:', settings);
-            // You can add additional logic here if needed
-          }}
-        />
+      <Settings
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        onSave={(settings) => {
+          console.log('✅ Farm settings saved:', settings);
+          // You can add additional logic here if needed
+        }}
+      />
     </div>
   );
 }

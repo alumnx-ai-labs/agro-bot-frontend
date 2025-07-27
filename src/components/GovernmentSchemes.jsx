@@ -1,14 +1,14 @@
 // src/components/GovernmentSchemes.jsx
 import React, { useState } from 'react';
 
-const GovernmentSchemes = ({ 
-  onAnalyze, 
-  isLoading, 
-  voiceSupport, 
-  onStartRecording, 
-  onStopRecording, 
-  onVoiceQuery, 
-  isRecording, 
+const GovernmentSchemes = ({
+  onAnalyze,
+  isLoading,
+  voiceSupport,
+  onStartRecording,
+  onStopRecording,
+  onVoiceQuery,
+  isRecording,
   recordedAudio
 }) => {
   const [query, setQuery] = useState('');
@@ -26,31 +26,31 @@ const GovernmentSchemes = ({
 
   const handleTextSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!query.trim()) {
       alert('Please enter your question about government schemes.');
       return;
     }
 
-const requestData = {
-  inputType: 'text',
-  content: query.trim(),
-  queryType: 'government_schemes',
-  language: 'en'
-};
+    const requestData = {
+      inputType: 'text',
+      content: query.trim(),
+      queryType: 'government_schemes',
+      language: 'en'
+    };
 
     await onAnalyze(requestData);
   };
 
   const handleVoiceSubmit = async () => {
     if (recordedAudio) {
-const requestData = {
-  inputType: 'audio',
-  content: recordedAudio,
-  queryType: 'government_schemes',
-  language: 'en'
-};
-      
+      const requestData = {
+        inputType: 'audio',
+        content: recordedAudio,
+        queryType: 'government_schemes',
+        language: 'en'
+      };
+
       await onVoiceQuery(requestData.content);
     }
   };
@@ -224,12 +224,12 @@ const requestData = {
   };
 
   return (
-    <div style={{ 
-      background: 'white', 
-      padding: '30px', 
-      borderRadius: '15px', 
-      boxShadow: '0 10px 30px rgba(0,0,0,0.1)', 
-      marginBottom: '30px' 
+    <div style={{
+      background: 'white',
+      padding: '30px',
+      borderRadius: '15px',
+      boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
+      marginBottom: '30px'
     }}>
       <div style={inputSectionStyle}>
         <div style={inputGroupStyle}>
@@ -345,9 +345,9 @@ const requestData = {
         </div>
 
         <div style={examplesStyle}>
-          <p style={{ 
-            marginBottom: '15px', 
-            fontWeight: '600', 
+          <p style={{
+            marginBottom: '15px',
+            fontWeight: '600',
             color: '#4a7c59',
             margin: '0 0 15px 0'
           }}>

@@ -3,13 +3,7 @@ import React, { useState } from 'react';
 
 const FarmAIConsultant = ({ 
   onAnalyze, 
-  isLoading, 
-  voiceSupport, 
-  onStartRecording, 
-  onStopRecording, 
-  onVoiceQuery, 
-  isRecording, 
-  recordedAudio,
+  isLoading,
   selectedSME,
   setSelectedSME,
   smeOptions
@@ -27,27 +21,36 @@ const FarmAIConsultant = ({
     setQuery(exampleQuery);
   };
 
-  const handleVoiceSubmit = async () => {
-    if (recordedAudio) {
-      const requestData = {
-        inputType: 'audio',
-        content: recordedAudio,
-        queryType: 'sme_consultation',
-        sme_expert: selectedSME !== 'none' ? selectedSME : undefined,
-        language: 'en'
-      };
-      
-      await onVoiceQuery(requestData.content);
-    }
+  const handleTextSubmit = async (e) => {
+  e.preventDefault();
+  
+  if (!query.trim()) {
+    alert('Please enter your question for the expert consultation.');
+    return;
+  }
+
+  if (!selectedSME || selectedSME === '') {
+    alert('Please select a Subject Matter Expert.');
+    return;
+  }
+
+  const requestData = {
+    inputType: 'text',
+    content: query.trim(),
+    queryType: 'sme_consultation',
+    sme_expert: selectedSME,
+    language: 'en'
   };
 
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      // For Farm AI Consultant, we'll trigger voice submit if audio is available
-      // or you can add text submission logic here if needed
-    }
-  };
+  await onAnalyze(requestData);
+};
+
+const handleKeyPress = (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    handleTextSubmit(e);
+  }
+};
 
   const inputSectionStyle = {
     display: 'flex',
@@ -133,39 +136,12 @@ const FarmAIConsultant = ({
     flexWrap: 'wrap'
   };
 
-  const voiceButtonStyle = {
-    ...buttonStyle,
-    background: isRecording ? '#dc3545' : '#667eea',
-    color: 'white'
-  };
+const consultButtonStyle = {
+  ...buttonStyle,
+  background: '#28a745',
+  color: 'white'
+};
 
-  const submitVoiceButtonStyle = {
-    ...buttonStyle,
-    background: '#28a745',
-    color: 'white'
-  };
-
-  const recordingStatusStyle = {
-    marginTop: '15px',
-    padding: '10px 15px',
-    background: '#ffebee',
-    color: '#c62828',
-    border: '1px solid #ef5350',
-    borderRadius: '8px',
-    textAlign: 'center',
-    fontWeight: '600'
-  };
-
-  const recordedStatusStyle = {
-    marginTop: '15px',
-    padding: '10px 15px',
-    background: '#e8f5e8',
-    color: '#2e7d32',
-    border: '1px solid #66bb6a',
-    borderRadius: '8px',
-    textAlign: 'center',
-    fontWeight: '600'
-  };
 
   const examplesStyle = {
     marginTop: '20px',
@@ -257,78 +233,35 @@ const FarmAIConsultant = ({
             </select>
           </div>
           <p style={helperTextStyle}>
-            Choose an expert to get specialized advice for your specific crop
-          </p>
+  Choose an expert to get specialized advice for your specific crop (Required)
+</p>
         </div>
 
         <div style={inputGroupStyle}>
           <div style={buttonContainerStyle}>
-            {/* Voice Recording Button */}
-            {voiceSupport && (
-              <>
-                <button
-                  onClick={isRecording ? onStopRecording : onStartRecording}
-                  disabled={isLoading}
-                  style={{
-                    ...voiceButtonStyle,
-                    ...(isLoading ? buttonDisabledStyle : {})
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isLoading) {
-                      Object.assign(e.target.style, buttonHoverStyle);
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isLoading) {
-                      e.target.style.transform = 'none';
-                      e.target.style.boxShadow = '0 5px 15px rgba(0,0,0,0.1)';
-                    }
-                  }}
-                >
-                  {isRecording ? '⏹️ Stop Recording' : '🎤 Voice Consultation'}
-                </button>
-
-                {/* Submit Voice Query Button */}
-                {recordedAudio && !isRecording && (
-                  <button
-                    onClick={handleVoiceSubmit}
-                    disabled={isLoading}
-                    style={{
-                      ...submitVoiceButtonStyle,
-                      ...(isLoading ? buttonDisabledStyle : {})
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!isLoading) {
-                        Object.assign(e.target.style, buttonHoverStyle);
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isLoading) {
-                        e.target.style.transform = 'none';
-                        e.target.style.boxShadow = '0 5px 15px rgba(0,0,0,0.1)';
-                      }
-                    }}
-                  >
-                    🚀 Submit Consultation
-                  </button>
-                )}
-              </>
-            )}
-          </div>
-
-          {/* Recording Status */}
-          {isRecording && (
-            <div style={recordingStatusStyle}>
-              🔴 Recording... Ask your farming question to the AI consultant
-            </div>
-          )}
-
-          {/* Recorded Audio Status */}
-          {recordedAudio && !isRecording && (
-            <div style={recordedStatusStyle}>
-              ✅ Voice recorded! Click "Submit Consultation" to get expert advice.
-            </div>
-          )}
+  {/* Consult Expert Button */}
+  <button
+    onClick={handleTextSubmit}
+    disabled={isLoading || !query.trim() || !selectedSME}
+    style={{
+      ...consultButtonStyle,
+      ...(isLoading || !query.trim() || !selectedSME ? buttonDisabledStyle : {})
+    }}
+    onMouseEnter={(e) => {
+      if (!isLoading && query.trim() && selectedSME) {
+        Object.assign(e.target.style, buttonHoverStyle);
+      }
+    }}
+    onMouseLeave={(e) => {
+      if (!isLoading && query.trim() && selectedSME) {
+        e.target.style.transform = 'none';
+        e.target.style.boxShadow = '0 5px 15px rgba(0,0,0,0.1)';
+      }
+    }}
+  >
+    👨‍🌾 Consult Expert
+  </button>
+</div>
         </div>
 
         <div style={examplesStyle}>
