@@ -6,6 +6,7 @@ const WeatherStations = () => {
   const [loading, setLoading] = useState(true);
   const [selectedStation, setSelectedStation] = useState(null);
   const [mapView, setMapView] = useState('hybrid');
+  const [mapsLoaded, setMapsLoaded] = useState(false);
   
   // Google Maps refs
   const mapRef = useRef(null);
@@ -13,15 +14,16 @@ const WeatherStations = () => {
   const markersRef = useRef([]);
 
   useEffect(() => {
+    loadGoogleMaps();
     loadWeatherStations();
   }, []);
 
   // Initialize map when stations are loaded and Google Maps is available
   useEffect(() => {
-    if (stations.length > 0 && !loading && window.google) {
+    if (stations.length > 0 && !loading && mapsLoaded && window.google) {
       initializeMap();
     }
-  }, [stations, loading]);
+  }, [stations, loading, mapsLoaded]);
 
   // Update map type when mapView changes
   useEffect(() => {
@@ -29,6 +31,35 @@ const WeatherStations = () => {
       mapInstanceRef.current.setMapTypeId(mapView);
     }
   }, [mapView]);
+
+  // Load Google Maps script dynamically with environment variable
+  const loadGoogleMaps = () => {
+    // Check if Google Maps is already loaded
+    if (window.google && window.google.maps) {
+      setMapsLoaded(true);
+      return;
+    }
+
+    // Check if script is already being loaded
+    if (document.querySelector('script[src*="maps.googleapis.com"]')) {
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.REACT_APP_GOOGLE_MAPS_API_KEY}&libraries=places`;
+    script.async = true;
+    script.defer = true;
+    
+    script.onload = () => {
+      setMapsLoaded(true);
+    };
+    
+    script.onerror = () => {
+      console.error('Failed to load Google Maps script');
+    };
+
+    document.head.appendChild(script);
+  };
 
   const loadWeatherStations = async () => {
     try {
@@ -492,7 +523,7 @@ const WeatherStations = () => {
             }}
           >
             {/* Fallback content when Google Maps is not loaded */}
-            {!window.google && (
+            {!mapsLoaded && (
               <div style={{
                 height: '100%',
                 display: 'flex',
@@ -617,8 +648,12 @@ const WeatherStations = () => {
                   boxShadow: '0 5px 15px rgba(0,0,0,0.1)'
                 }}>
                   <div style={{ fontSize: '3rem', marginBottom: '10px' }}>🗺️</div>
-                  <p style={{ fontWeight: '600', margin: '0 0 5px 0' }}>Interactive Weather Station Map</p>
-                  <p style={{ fontSize: '0.9rem', color: '#999', margin: '0 0 10px 0' }}>Google Maps integration ready</p>
+                  <p style={{ fontWeight: '600', margin: '0 0 5px 0' }}>
+                    {mapsLoaded ? 'Interactive Weather Station Map' : 'Loading Google Maps...'}
+                  </p>
+                  <p style={{ fontSize: '0.9rem', color: '#999', margin: '0 0 10px 0' }}>
+                    {mapsLoaded ? 'Google Maps integration ready' : 'Please wait while we load the map'}
+                  </p>
                   <p style={{ fontSize: '0.8rem', color: '#ff6b35', margin: 0 }}>📍 Click markers to view station details</p>
                 </div>
               </div>
