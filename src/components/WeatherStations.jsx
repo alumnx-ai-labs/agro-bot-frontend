@@ -432,7 +432,7 @@ const WeatherStations = () => {
             boxShadow: '0 5px 15px rgba(0,0,0,0.1)'
           }}>
             <div style={{ fontSize: '3rem', marginBottom: '10px' }}>🗺️</div>
-            <p style={{ fontWeight: '600', margin: '0 0 5px 0' }}>Interactive Weather Stations Map</p>
+            <p style={{ fontWeight: '600', margin: '0 0 5px 0' }}>Interactive Weather Station Map</p>
             <p style={{ fontSize: '0.9rem', color: '#999', margin: '0 0 10px 0' }}>Google Maps integration ready</p>
             <p style={{ fontSize: '0.8rem', color: '#ff6b35', margin: 0 }}>📍 Click markers to view station details</p>
           </div>
