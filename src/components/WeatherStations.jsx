@@ -1,15 +1,65 @@
 // src/components/WeatherStations.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 const WeatherStations = () => {
   const [stations, setStations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedStation, setSelectedStation] = useState(null);
   const [mapView, setMapView] = useState('hybrid');
+  const [mapsLoaded, setMapsLoaded] = useState(false);
+  
+  // Google Maps refs
+  const mapRef = useRef(null);
+  const mapInstanceRef = useRef(null);
+  const markersRef = useRef([]);
 
   useEffect(() => {
+    loadGoogleMaps();
     loadWeatherStations();
   }, []);
+
+  // Initialize map when stations are loaded and Google Maps is available
+  useEffect(() => {
+    if (stations.length > 0 && !loading && mapsLoaded && window.google) {
+      initializeMap();
+    }
+  }, [stations, loading, mapsLoaded]);
+
+  // Update map type when mapView changes
+  useEffect(() => {
+    if (mapInstanceRef.current && window.google) {
+      mapInstanceRef.current.setMapTypeId(mapView);
+    }
+  }, [mapView]);
+
+  // Load Google Maps script dynamically with environment variable
+  const loadGoogleMaps = () => {
+    // Check if Google Maps is already loaded
+    if (window.google && window.google.maps) {
+      setMapsLoaded(true);
+      return;
+    }
+
+    // Check if script is already being loaded
+    if (document.querySelector('script[src*="maps.googleapis.com"]')) {
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.REACT_APP_GOOGLE_MAPS_API_KEY}&libraries=places`;
+    script.async = true;
+    script.defer = true;
+    
+    script.onload = () => {
+      setMapsLoaded(true);
+    };
+    
+    script.onerror = () => {
+      console.error('Failed to load Google Maps script');
+    };
+
+    document.head.appendChild(script);
+  };
 
   const loadWeatherStations = async () => {
     try {
@@ -101,9 +151,161 @@ const WeatherStations = () => {
     }
   };
 
+  // Google Maps initialization
+  const initializeMap = () => {
+    if (!window.google || !mapRef.current) {
+      console.error('Google Maps not loaded or map container not available');
+      return;
+    }
+
+    // Clear existing markers
+    markersRef.current.forEach(marker => marker.setMap(null));
+    markersRef.current = [];
+
+    // Center map on Telangana (approximate center)
+    const center = { lat: 17.7231, lng: 78.4480 };
+    
+    const map = new window.google.maps.Map(mapRef.current, {
+      zoom: 8,
+      center: center,
+      mapTypeId: mapView,
+      styles: [
+        {
+          featureType: 'poi',
+          elementType: 'labels',
+          stylers: [{ visibility: 'off' }]
+        }
+      ]
+    });
+
+    mapInstanceRef.current = map;
+
+    // Add markers for each station
+    stations.forEach((station) => {
+      const marker = new window.google.maps.Marker({
+        position: { lat: station.latitude, lng: station.longitude },
+        map: map,
+        title: station.name,
+        icon: {
+          path: window.google.maps.SymbolPath.CIRCLE,
+          fillColor: getStationColor(station),
+          fillOpacity: 1,
+          strokeColor: '#ffffff',
+          strokeWeight: 2,
+          scale: 8
+        }
+      });
+
+      // Info window for station details
+      const infoWindow = new window.google.maps.InfoWindow({
+        content: createInfoWindowContent(station)
+      });
+
+      marker.addListener('click', () => {
+        // Close all other info windows
+        markersRef.current.forEach(m => {
+          if (m.infoWindow) {
+            m.infoWindow.close();
+          }
+        });
+        
+        infoWindow.open(map, marker);
+        setSelectedStation(station);
+      });
+
+      marker.infoWindow = infoWindow;
+      markersRef.current.push(marker);
+    });
+  };
+
+  const getStationColor = (station) => {
+    if (station.connectivity === 'Offline') return '#dc3545';
+    if (station.status === 'Maintenance') return '#ffc107';
+    return '#28a745';
+  };
+
+  const createInfoWindowContent = (station) => {
+    return `
+      <div style="padding: 10px; min-width: 200px;">
+        <h3 style="margin: 0 0 10px 0; color: #333; font-size: 1.1rem;">${station.name}</h3>
+        <p style="margin: 5px 0;"><strong>Type:</strong> ${station.type}</p>
+        <p style="margin: 5px 0;"><strong>District:</strong> ${station.district}</p>
+        <p style="margin: 5px 0;"><strong>Status:</strong> 
+          <span style="
+            padding: 2px 6px; 
+            border-radius: 10px; 
+            font-size: 0.8rem;
+            background: ${station.status === 'Active' ? '#d4edda' : '#fff3cd'};
+            color: ${station.status === 'Active' ? '#155724' : '#856404'};
+          ">${station.status}</span>
+        </p>
+        ${station.connectivity === 'Online' && station.currentTemp ? `
+          <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee;">
+            <p style="margin: 3px 0;"><strong>Temperature:</strong> ${station.currentTemp}</p>
+            ${station.humidity ? `<p style="margin: 3px 0;"><strong>Humidity:</strong> ${station.humidity}</p>` : ''}
+          </div>
+        ` : ''}
+      </div>
+    `;
+  };
+
+  // Map control functions
+  const handleZoomIn = () => {
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.setZoom(mapInstanceRef.current.getZoom() + 1);
+    }
+  };
+
+  const handleZoomOut = () => {
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.setZoom(mapInstanceRef.current.getZoom() - 1);
+    }
+  };
+
+  const handleMyLocation = () => {
+    if (navigator.geolocation && mapInstanceRef.current) {
+      navigator.geolocation.getCurrentPosition((position) => {
+        const pos = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        };
+        mapInstanceRef.current.setCenter(pos);
+        mapInstanceRef.current.setZoom(12);
+      });
+    }
+  };
+
+  const handleWeatherOverlay = () => {
+    // Weather overlay functionality can be added here
+    console.log('Weather overlay clicked');
+  };
+
   const refreshStations = () => {
     setLoading(true);
     loadWeatherStations();
+  };
+
+  // Function to zoom to specific station when clicked from grid
+  const handleStationClick = (station) => {
+    setSelectedStation(station);
+    
+    // Zoom to station on map if map is initialized
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.setCenter({ lat: station.latitude, lng: station.longitude });
+      mapInstanceRef.current.setZoom(12);
+      
+      // Find and open the info window for this station
+      const marker = markersRef.current.find(m => m.getTitle() === station.name);
+      if (marker && marker.infoWindow) {
+        // Close all other info windows
+        markersRef.current.forEach(m => {
+          if (m.infoWindow) {
+            m.infoWindow.close();
+          }
+        });
+        marker.infoWindow.open(mapInstanceRef.current, marker);
+      }
+    }
   };
 
   if (loading) {
@@ -302,139 +504,160 @@ const WeatherStations = () => {
           </span>
         </h3>
         
-        {/* Enhanced Map Placeholder */}
+        {/* Google Maps Container - UPDATED */}
         <div style={{
           background: 'linear-gradient(135deg, #e3f2fd 0%, #e8f5e8 100%)',
           borderRadius: '12px',
           height: '500px',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
           border: '3px dashed #ccc',
           position: 'relative',
           overflow: 'hidden'
         }}>
-          {/* Background pattern */}
-          <div style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            opacity: 0.1,
-            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='0.1'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-            backgroundSize: '30px 30px'
-          }} />
-          
-          {/* Simulated station markers */}
-          <div style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}>
-            <div style={{ position: 'relative', width: '300px', height: '200px' }}>
-              {/* Station markers with different positions */}
-              <div 
-                style={{
+          {/* Google Maps will render here */}
+          <div 
+            ref={mapRef}
+            style={{ 
+              height: '100%', 
+              width: '100%',
+              borderRadius: '12px'
+            }}
+          >
+            {/* Fallback content when Google Maps is not loaded */}
+            {!mapsLoaded && (
+              <div style={{
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                {/* Background pattern */}
+                <div style={{
                   position: 'absolute',
-                  top: '60px',
-                  left: '80px',
-                  width: '12px',
-                  height: '12px',
-                  background: '#28a745',
-                  borderRadius: '50%',
-                  boxShadow: '0 0 10px rgba(40,167,69,0.6)',
-                  cursor: 'pointer',
-                  animation: 'pulse 2s infinite'
-                }}
-                title="Shadnagar Agricultural Station"
-                onClick={() => setSelectedStation(stations[0])}
-              />
-              <div 
-                style={{
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  opacity: 0.1,
+                  backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='0.1'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+                  backgroundSize: '30px 30px'
+                }} />
+                
+                {/* Simulated station markers */}
+                <div style={{
                   position: 'absolute',
-                  top: '100px',
-                  left: '150px',
-                  width: '12px',
-                  height: '12px',
-                  background: '#007bff',
-                  borderRadius: '50%',
-                  boxShadow: '0 0 10px rgba(0,123,255,0.6)',
-                  cursor: 'pointer',
-                  animation: 'pulse 2s infinite'
-                }}
-                title="Hyderabad Weather Center"
-                onClick={() => setSelectedStation(stations[1])}
-              />
-              <div 
-                style={{
-                  position: 'absolute',
-                  top: '130px',
-                  left: '120px',
-                  width: '12px',
-                  height: '12px',
-                  background: '#ffc107',
-                  borderRadius: '50%',
-                  boxShadow: '0 0 10px rgba(255,193,7,0.6)',
-                  cursor: 'pointer',
-                  animation: 'pulse 2s infinite'
-                }}
-                title="Rangareddy Rural Station"
-                onClick={() => setSelectedStation(stations[2])}
-              />
-              <div 
-                style={{
-                  position: 'absolute',
-                  top: '30px',
-                  left: '200px',
-                  width: '12px',
-                  height: '12px',
-                  background: '#6f42c1',
-                  borderRadius: '50%',
-                  boxShadow: '0 0 10px rgba(111,66,193,0.6)',
-                  cursor: 'pointer',
-                  animation: 'pulse 2s infinite'
-                }}
-                title="Warangal Agricultural Hub"
-                onClick={() => setSelectedStation(stations[3])}
-              />
-              <div 
-                style={{
-                  position: 'absolute',
-                  top: '40px',
-                  left: '70px',
-                  width: '12px',
-                  height: '12px',
-                  background: '#dc3545',
-                  borderRadius: '50%',
-                  boxShadow: '0 0 10px rgba(220,53,69,0.6)',
-                  cursor: 'pointer'
-                }}
-                title="Nizamabad Cotton Station (Offline)"
-                onClick={() => setSelectedStation(stations[4])}
-              />
-            </div>
-          </div>
-          
-          <div style={{
-            textAlign: 'center',
-            color: '#666',
-            zIndex: 10,
-            background: 'rgba(255,255,255,0.95)',
-            padding: '20px',
-            borderRadius: '10px',
-            boxShadow: '0 5px 15px rgba(0,0,0,0.1)'
-          }}>
-            <div style={{ fontSize: '3rem', marginBottom: '10px' }}>🗺️</div>
-            <p style={{ fontWeight: '600', margin: '0 0 5px 0' }}>Interactive Weather Station Map</p>
-            <p style={{ fontSize: '0.9rem', color: '#999', margin: '0 0 10px 0' }}>Google Maps integration ready</p>
-            <p style={{ fontSize: '0.8rem', color: '#ff6b35', margin: 0 }}>📍 Click markers to view station details</p>
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <div style={{ position: 'relative', width: '300px', height: '200px' }}>
+                    {/* Station markers with different positions */}
+                    <div 
+                      style={{
+                        position: 'absolute',
+                        top: '60px',
+                        left: '80px',
+                        width: '12px',
+                        height: '12px',
+                        background: '#28a745',
+                        borderRadius: '50%',
+                        boxShadow: '0 0 10px rgba(40,167,69,0.6)',
+                        cursor: 'pointer',
+                        animation: 'pulse 2s infinite'
+                      }}
+                      title="Shadnagar Agricultural Station"
+                      onClick={() => setSelectedStation(stations[0])}
+                    />
+                    <div 
+                      style={{
+                        position: 'absolute',
+                        top: '100px',
+                        left: '150px',
+                        width: '12px',
+                        height: '12px',
+                        background: '#007bff',
+                        borderRadius: '50%',
+                        boxShadow: '0 0 10px rgba(0,123,255,0.6)',
+                        cursor: 'pointer',
+                        animation: 'pulse 2s infinite'
+                      }}
+                      title="Hyderabad Weather Center"
+                      onClick={() => setSelectedStation(stations[1])}
+                    />
+                    <div 
+                      style={{
+                        position: 'absolute',
+                        top: '130px',
+                        left: '120px',
+                        width: '12px',
+                        height: '12px',
+                        background: '#ffc107',
+                        borderRadius: '50%',
+                        boxShadow: '0 0 10px rgba(255,193,7,0.6)',
+                        cursor: 'pointer',
+                        animation: 'pulse 2s infinite'
+                      }}
+                      title="Rangareddy Rural Station"
+                      onClick={() => setSelectedStation(stations[2])}
+                    />
+                    <div 
+                      style={{
+                        position: 'absolute',
+                        top: '30px',
+                        left: '200px',
+                        width: '12px',
+                        height: '12px',
+                        background: '#6f42c1',
+                        borderRadius: '50%',
+                        boxShadow: '0 0 10px rgba(111,66,193,0.6)',
+                        cursor: 'pointer',
+                        animation: 'pulse 2s infinite'
+                      }}
+                      title="Warangal Agricultural Hub"
+                      onClick={() => setSelectedStation(stations[3])}
+                    />
+                    <div 
+                      style={{
+                        position: 'absolute',
+                        top: '40px',
+                        left: '70px',
+                        width: '12px',
+                        height: '12px',
+                        background: '#dc3545',
+                        borderRadius: '50%',
+                        boxShadow: '0 0 10px rgba(220,53,69,0.6)',
+                        cursor: 'pointer'
+                      }}
+                      title="Nizamabad Cotton Station (Offline)"
+                      onClick={() => setSelectedStation(stations[4])}
+                    />
+                  </div>
+                </div>
+                
+                <div style={{
+                  textAlign: 'center',
+                  color: '#666',
+                  zIndex: 10,
+                  background: 'rgba(255,255,255,0.95)',
+                  padding: '20px',
+                  borderRadius: '10px',
+                  boxShadow: '0 5px 15px rgba(0,0,0,0.1)'
+                }}>
+                  <div style={{ fontSize: '3rem', marginBottom: '10px' }}>🗺️</div>
+                  <p style={{ fontWeight: '600', margin: '0 0 5px 0' }}>
+                    {mapsLoaded ? 'Interactive Weather Station Map' : 'Loading Google Maps...'}
+                  </p>
+                  <p style={{ fontSize: '0.9rem', color: '#999', margin: '0 0 10px 0' }}>
+                    {mapsLoaded ? 'Google Maps integration ready' : 'Please wait while we load the map'}
+                  </p>
+                  <p style={{ fontSize: '0.8rem', color: '#ff6b35', margin: 0 }}>📍 Click markers to view station details</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -445,31 +668,98 @@ const WeatherStations = () => {
           flexWrap: 'wrap',
           gap: '10px'
         }}>
-          {['🔍 Zoom In', '🔍 Zoom Out', '📍 My Location', '🌡️ Weather Overlay'].map((control, index) => (
-            <button 
-              key={index}
-              style={{
-                padding: '8px 15px',
-                background: '#f8f9fa',
-                color: '#333',
-                border: '1px solid #ddd',
-                borderRadius: '6px',
-                fontSize: '0.9rem',
-                cursor: 'pointer',
-                transition: 'all 0.3s ease'
-              }}
-              onMouseEnter={(e) => {
-                e.target.style.background = '#e9ecef';
-                e.target.style.borderColor = '#adb5bd';
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.background = '#f8f9fa';
-                e.target.style.borderColor = '#ddd';
-              }}
-            >
-              {control}
-            </button>
-          ))}
+          <button 
+            onClick={handleZoomIn}
+            style={{
+              padding: '8px 15px',
+              background: '#f8f9fa',
+              color: '#333',
+              border: '1px solid #ddd',
+              borderRadius: '6px',
+              fontSize: '0.9rem',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.background = '#e9ecef';
+              e.target.style.borderColor = '#adb5bd';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.background = '#f8f9fa';
+              e.target.style.borderColor = '#ddd';
+            }}
+          >
+            🔍 Zoom In
+          </button>
+          <button 
+            onClick={handleZoomOut}
+            style={{
+              padding: '8px 15px',
+              background: '#f8f9fa',
+              color: '#333',
+              border: '1px solid #ddd',
+              borderRadius: '6px',
+              fontSize: '0.9rem',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.background = '#e9ecef';
+              e.target.style.borderColor = '#adb5bd';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.background = '#f8f9fa';
+              e.target.style.borderColor = '#ddd';
+            }}
+          >
+            🔍 Zoom Out
+          </button>
+          <button 
+            onClick={handleMyLocation}
+            style={{
+              padding: '8px 15px',
+              background: '#f8f9fa',
+              color: '#333',
+              border: '1px solid #ddd',
+              borderRadius: '6px',
+              fontSize: '0.9rem',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.background = '#e9ecef';
+              e.target.style.borderColor = '#adb5bd';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.background = '#f8f9fa';
+              e.target.style.borderColor = '#ddd';
+            }}
+          >
+            📍 My Location
+          </button>
+          <button 
+            onClick={handleWeatherOverlay}
+            style={{
+              padding: '8px 15px',
+              background: '#f8f9fa',
+              color: '#333',
+              border: '1px solid #ddd',
+              borderRadius: '6px',
+              fontSize: '0.9rem',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.background = '#e9ecef';
+              e.target.style.borderColor = '#adb5bd';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.background = '#f8f9fa';
+              e.target.style.borderColor = '#ddd';
+            }}
+          >
+            🌡️ Weather Overlay
+          </button>
         </div>
       </div>
 
@@ -603,7 +893,7 @@ const WeatherStations = () => {
           {stations.map((station) => (
             <div
               key={station.id}
-              onClick={() => setSelectedStation(station)}
+              onClick={() => handleStationClick(station)}
               style={{
                 background: 'linear-gradient(135deg, #f8f9fa, #e9ecef)',
                 borderRadius: '12px',
