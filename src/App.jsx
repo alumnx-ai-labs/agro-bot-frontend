@@ -20,6 +20,13 @@ function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [selectedSME, setSelectedSME] = useState(''); // New state for SME selection
 
+  // Teachable Machine persistent state
+  const [teachableMachineState, setTeachableMachineState] = useState({
+    imageResults: [],
+    duplicatePairs: [],
+    model: null
+  });
+
   // Voice recording states
   const [isRecording, setIsRecording] = useState(false);
   const [recordedAudio, setRecordedAudio] = useState(null);
@@ -87,7 +94,19 @@ const smeOptions = [
 
   const switchMode = (mode) => {
     setCurrentMode(mode);
-    resetInterface();
+    // Only reset interface for non-teachable machine modes
+    if (mode !== 'teachable') {
+      resetInterface();
+    } else {
+      // For teachable machine, only reset loading states but keep the data
+      setIsLoading(false);
+      setLoadingText('');
+      setResults(null);
+      setResultsTitle('');
+      setError(null);
+      setCurrentSessionId(null);
+      setManagerThoughts([]);
+    }
   };
 
   const resetInterface = () => {
@@ -986,7 +1005,10 @@ if (results.agent_response && results.agent_response.type === 'predictive_adviso
           )}
 
           {currentMode === 'teachable' && (
-              <TeachableMachineUpload />
+              <TeachableMachineUpload 
+                persistentState={teachableMachineState}
+                onStateChange={setTeachableMachineState}
+              />
           )}
 
           {/* Loading Section */}
@@ -1089,8 +1111,7 @@ if (results.agent_response && results.agent_response.type === 'predictive_adviso
           marginTop: '30px',
           fontSize: '0.9rem'
         }}>
-                  <p>Phase 1 MVP - Disease Detection, Government Schemes, AI Consultants, Predictive Advisories & Weather Data</p>
-
+          <p>Phase 1 MVP - Disease Detection, Government Schemes, AI Consultants, Predictive Advisories & Weather Data</p>
         </footer>
       </div>
 
