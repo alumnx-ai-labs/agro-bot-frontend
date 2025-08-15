@@ -1,22 +1,22 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Upload, X, FileImage, AlertCircle, MapPin, Check, Trash2 } from 'lucide-react';
-const TeachableMachineUpload = () => {
-  const [model, setModel] = useState(null);
-  const [isModelLoading, setIsModelLoading] = useState(false);
+
+const TeachableMachineUpload = ({ persistentState, onStateChange }) => {
   const [modelType, setModelType] = useState('teachable_machine'); // 'teachable_machine' or 'mobilenet'
-  const [imageResults, setImageResults] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [duplicatePairs, setDuplicatePairs] = useState([]);
+  const [isModelLoading, setIsModelLoading] = useState(false);
   const [isCheckingDuplicates, setIsCheckingDuplicates] = useState(false);
   const fileInputRef = useRef(null);
 
+  // Use persistent state from parent
+  const { imageResults, duplicatePairs, model } = persistentState;
+
   // Backend URL from environment variable
-  const BACKEND_URL = process.env.REACT_APP_BACKEND_URL 
+  const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:8000";
 
   // Your Teachable Machine model URL - replace with your actual model URL
-  const MODEL_URL = process.env.TEACHABLE_MACHINE_URL 
+  const MODEL_URL = process.env.TEACHABLE_MACHINE_URL || "https://teachablemachine.withgoogle.com/models/6UdJBojDI/";
 
-  // Extract GPS coordinates from EXIF data
   // Helper function to convert DMS (Degrees, Minutes, Seconds) to Decimal Degrees
   const convertDMSToDD = (dms, ref) => {
     let dd = dms[0] + dms[1] / 60 + dms[2] / 3600;
@@ -62,7 +62,7 @@ const TeachableMachineUpload = () => {
 
       if (window.tmImage) {
         const loadedModel = await window.tmImage.load(modelURL, metadataURL);
-        setModel(loadedModel);
+        onStateChange(prev => ({ ...prev, model: loadedModel }));
         return loadedModel;
       } else {
         throw new Error('Teachable Machine library not loaded');
@@ -74,7 +74,7 @@ const TeachableMachineUpload = () => {
     } finally {
       setIsModelLoading(false);
     }
-  }, [model, MODEL_URL]);
+  }, [model, MODEL_URL, onStateChange]);
 
   // Convert image to base64
   const imageToBase64 = (imageElement) => {
@@ -158,7 +158,7 @@ const TeachableMachineUpload = () => {
       if (response.ok) {
         const duplicateData = await response.json();
         console.log('Received duplicate data:', duplicateData);
-        setDuplicatePairs(duplicateData.similar_pairs || []);
+        onStateChange(prev => ({ ...prev, duplicatePairs: duplicateData.similar_pairs || [] }));
       } else {
         const errorText = await response.text();
         console.error('Backend error:', response.status, errorText);
@@ -221,11 +221,11 @@ const TeachableMachineUpload = () => {
         }
       }
 
-      setImageResults(prev => [...prev, ...newResults]);
+      onStateChange(prev => ({ ...prev, imageResults: [...prev.imageResults, ...newResults] }));
 
       // Send images with location data to backend
       if (newResults.length > 0) {
-        await sendMangoLocationsToBackend(newResults);
+        await sendMangoLocationsToBackend([...imageResults, ...newResults]);
       }
 
     } catch (error) {
@@ -257,7 +257,10 @@ const TeachableMachineUpload = () => {
 
       if (response.ok) {
         // Remove the pair from duplicates list
-        setDuplicatePairs(prev => prev.filter(pair => pair.pairId !== pairId));
+        onStateChange(prev => ({ 
+          ...prev, 
+          duplicatePairs: prev.duplicatePairs.filter(pair => pair.pairId !== pairId)
+        }));
 
         // Remove images from results if needed
         if (action === 'keep_first_remove_second') {
@@ -277,29 +280,31 @@ const TeachableMachineUpload = () => {
     console.log('Attempting to remove image with ID:', id, typeof id);
     console.log('Current imageResults IDs:', imageResults.map(r => ({ id: r.id, type: typeof r.id })));
 
-    setImageResults(prev => {
-      const updated = prev.filter(result => String(result.id) !== String(id)); // Fixed: !== instead of ===
-      const toRemove = prev.find(result => String(result.id) === String(id));
-      if (toRemove) {
-        URL.revokeObjectURL(toRemove.imageUrl);
-        console.log('Successfully removed image:', toRemove.file.name);
-      } else {
-        console.log('Could not find image to remove with ID:', id);
-      }
-      return updated;
-    });
+    const toRemove = imageResults.find(result => String(result.id) === String(id));
+    if (toRemove) {
+      URL.revokeObjectURL(toRemove.imageUrl);
+      console.log('Successfully removed image:', toRemove.file.name);
+    } else {
+      console.log('Could not find image to remove with ID:', id);
+    }
 
-    // Also remove from duplicate pairs if it exists
-    setDuplicatePairs(prev => prev.filter(pair =>
-      String(pair.imageId1) !== String(id) && String(pair.imageId2) !== String(id)
-    ));
+    onStateChange(prev => ({
+      ...prev,
+      imageResults: prev.imageResults.filter(result => String(result.id) !== String(id)),
+      duplicatePairs: prev.duplicatePairs.filter(pair =>
+        String(pair.imageId1) !== String(id) && String(pair.imageId2) !== String(id)
+      )
+    }));
   };
 
   // Clear all results
   const clearAllResults = () => {
     imageResults.forEach(result => URL.revokeObjectURL(result.imageUrl));
-    setImageResults([]);
-    setDuplicatePairs([]);
+    onStateChange(prev => ({
+      ...prev,
+      imageResults: [],
+      duplicatePairs: []
+    }));
   };
 
   return (
