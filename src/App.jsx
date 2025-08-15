@@ -6,6 +6,7 @@ import FarmAIConsultant from './components/FarmAIConsultant';
 import Settings from './components/Settings';
 import FarmPredictiveAdvisories from './components/FarmPredictiveAdvisories';
 import WeatherStations from './components/WeatherStations';
+import Dashboard from './components/Dashboard';
 
 function App() {
   const [currentMode, setCurrentMode] = useState('disease');
@@ -927,7 +928,8 @@ if (results.agent_response && results.agent_response.type === 'predictive_adviso
             { mode: 'schemes', label: '📋 Government Schemes', color: '#667eea' },
             { mode: 'consultant', label: '🤖 Farm AI Consultants', color: '#28a745' },
             { mode: 'predictive', label: '🔮 Farm Predictive Advisories', color: '#0891b2' },
-            { mode: 'weather', label: '🌦️ Crowdpooling Weather Data', color: '#ff6b35' }
+            { mode: 'weather', label: '🌦️ Crowdpooling Weather Data', color: '#ff6b35' },
+            { mode: 'dashboard', label: '🌦️ Analysis made out of data', color: '#ff6b35' }
           ].map(({ mode, label, color }) => (
             <button
               key={mode}
@@ -1026,6 +1028,54 @@ if (results.agent_response && results.agent_response.type === 'predictive_adviso
               )}
             </div>
           )}
+          {currentMode === 'dashboard' && (
+            <Dashboard/>
+          )}
+
+          {/* Loading Section */}
+          {isLoading && (
+            <div style={{
+              background: 'white',
+              padding: '40px',
+              borderRadius: '15px',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
+              textAlign: 'center',
+              marginTop: '30px'
+            }}>
+              <div style={{
+                width: '50px',
+                height: '50px',
+                border: '5px solid #f3f3f3',
+                borderTop: '5px solid #4a7c59',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite',
+                margin: '0 auto 20px'
+              }}></div>
+              <p style={{ fontSize: '1.2rem', fontWeight: '600', color: '#333', marginBottom: '20px' }}>
+                {loadingText}
+              </p>
+
+              {managerThoughts.length > 0 && (
+                <div style={{ textAlign: 'left', maxWidth: '400px', margin: '0 auto' }}>
+                  {managerThoughts.map((thought, index) => (
+                    <div
+                      key={index}
+                      style={{
+                        background: '#e8f5e8',
+                        padding: '10px 15px',
+                        borderRadius: '20px',
+                        margin: '10px 0',
+                        borderLeft: '4px solid #4a7c59'
+                      }}
+                    >
+                      {thought}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
 
           {/* Results Section */}
           {results && !isLoading && (
