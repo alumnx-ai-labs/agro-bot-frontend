@@ -5,7 +5,7 @@ import GovernmentSchemes from './components/GovernmentSchemes';
 import FarmAIConsultant from './components/FarmAIConsultant';
 import Settings from './components/Settings';
 import FarmPredictiveAdvisories from './components/FarmPredictiveAdvisories';
-import WeatherStations from './components/WeatherStations';
+import FarmPlotsMap from './components/FarmPlotsMap';
 import TeachableMachineUpload from './components/TeachableMachineUpload';
 
 function App() {
@@ -19,6 +19,7 @@ function App() {
   const [managerThoughts, setManagerThoughts] = useState([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [selectedSME, setSelectedSME] = useState(''); // New state for SME selection
+  const [uploadedImageCoordinates, setUploadedImageCoordinates] = useState([]);
 
   // Teachable Machine persistent state
   const [teachableMachineState, setTeachableMachineState] = useState({
@@ -108,7 +109,9 @@ const smeOptions = [
       setManagerThoughts([]);
     }
   };
-
+  const updateImageCoordinates = (coordinates) => {
+  setUploadedImageCoordinates(coordinates);
+  };
   const resetInterface = () => {
     setIsLoading(false);
     setLoadingText('');
@@ -947,8 +950,8 @@ if (results.agent_response && results.agent_response.type === 'predictive_adviso
             { mode: 'schemes', label: '📋 Government Schemes', color: '#667eea' },
             { mode: 'consultant', label: '🤖 Farm AI Consultants', color: '#28a745' },
             { mode: 'predictive', label: '🔮 Farm Predictive Advisories', color: '#0891b2' },
-            { mode: 'weather', label: '🌦️ Crowdpooling Weather Data', color: '#ff6b35' },
-            { mode: 'teachable', label: '🧠 Teachable Machine', color: '#a855f7' }
+            { mode: 'weather', label: '🚜 Farm Plots Map', color: '#ff6b35' },
+            { mode: 'teachable', label: '🧠 Upload Images', color: '#a855f7' }
           ].map(({ mode, label, color }) => (
             <button
               key={mode}
@@ -1001,13 +1004,14 @@ if (results.agent_response && results.agent_response.type === 'predictive_adviso
 )}
 
           {currentMode === 'weather' && (
-            <WeatherStations />
+            < FarmPlotsMap uploadedImageCoordinates={uploadedImageCoordinates}/>
           )}
 
           {currentMode === 'teachable' && (
               <TeachableMachineUpload 
                 persistentState={teachableMachineState}
                 onStateChange={setTeachableMachineState}
+                onCoordinatesUpdate={updateImageCoordinates}
               />
           )}
 
