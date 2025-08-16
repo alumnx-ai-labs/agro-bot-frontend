@@ -5,7 +5,7 @@ import GovernmentSchemes from './components/GovernmentSchemes';
 import FarmAIConsultant from './components/FarmAIConsultant';
 import Settings from './components/Settings';
 import FarmPredictiveAdvisories from './components/FarmPredictiveAdvisories';
-import WeatherStations from './components/WeatherStations';
+import FarmPlotsMap from './components/FarmPlotsMap';
 import TeachableMachineUpload from './components/TeachableMachineUpload';
 
 function App() {
@@ -19,6 +19,14 @@ function App() {
   const [managerThoughts, setManagerThoughts] = useState([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [selectedSME, setSelectedSME] = useState(''); // New state for SME selection
+  const [uploadedImageCoordinates, setUploadedImageCoordinates] = useState([]);
+
+  // Teachable Machine persistent state
+  const [teachableMachineState, setTeachableMachineState] = useState({
+    imageResults: [],
+    duplicatePairs: [],
+    model: null
+  });
 
   // Voice recording states
   const [isRecording, setIsRecording] = useState(false);
@@ -87,9 +95,23 @@ const smeOptions = [
 
   const switchMode = (mode) => {
     setCurrentMode(mode);
-    resetInterface();
+    // Only reset interface for non-teachable machine modes
+    if (mode !== 'teachable') {
+      resetInterface();
+    } else {
+      // For teachable machine, only reset loading states but keep the data
+      setIsLoading(false);
+      setLoadingText('');
+      setResults(null);
+      setResultsTitle('');
+      setError(null);
+      setCurrentSessionId(null);
+      setManagerThoughts([]);
+    }
   };
-
+  const updateImageCoordinates = (coordinates) => {
+  setUploadedImageCoordinates(coordinates);
+  };
   const resetInterface = () => {
     setIsLoading(false);
     setLoadingText('');
@@ -928,8 +950,8 @@ if (results.agent_response && results.agent_response.type === 'predictive_adviso
             { mode: 'schemes', label: '📋 Government Schemes', color: '#667eea' },
             { mode: 'consultant', label: '🤖 Farm AI Consultants', color: '#28a745' },
             { mode: 'predictive', label: '🔮 Farm Predictive Advisories', color: '#0891b2' },
-            { mode: 'weather', label: '🌦️ Crowdpooling Weather Data', color: '#ff6b35' },
-            { mode: 'teachable', label: '🧠 Teachable Machine', color: '#a855f7' }
+            { mode: 'weather', label: '🚜 Farm Plots Map', color: '#ff6b35' },
+            { mode: 'teachable', label: '🧠 Upload Images', color: '#a855f7' }
           ].map(({ mode, label, color }) => (
             <button
               key={mode}
@@ -982,11 +1004,15 @@ if (results.agent_response && results.agent_response.type === 'predictive_adviso
 )}
 
           {currentMode === 'weather' && (
-            <WeatherStations />
+            < FarmPlotsMap uploadedImageCoordinates={uploadedImageCoordinates}/>
           )}
 
           {currentMode === 'teachable' && (
-              <TeachableMachineUpload />
+              <TeachableMachineUpload 
+                persistentState={teachableMachineState}
+                onStateChange={setTeachableMachineState}
+                onCoordinatesUpdate={updateImageCoordinates}
+              />
           )}
 
           {/* Loading Section */}
@@ -1089,8 +1115,7 @@ if (results.agent_response && results.agent_response.type === 'predictive_adviso
           marginTop: '30px',
           fontSize: '0.9rem'
         }}>
-                  <p>Phase 1 MVP - Disease Detection, Government Schemes, AI Consultants, Predictive Advisories & Weather Data</p>
-
+          <p>Phase 1 MVP - Disease Detection, Government Schemes, AI Consultants, Predictive Advisories & Weather Data</p>
         </footer>
       </div>
 

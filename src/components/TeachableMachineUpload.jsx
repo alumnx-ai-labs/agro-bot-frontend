@@ -1,22 +1,39 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Upload, X, FileImage, AlertCircle, MapPin, Check, Trash2 } from 'lucide-react';
-const TeachableMachineUpload = () => {
-  const [model, setModel] = useState(null);
-  const [isModelLoading, setIsModelLoading] = useState(false);
+
+const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesUpdate }) => {
   const [modelType, setModelType] = useState('teachable_machine'); // 'teachable_machine' or 'mobilenet'
-  const [imageResults, setImageResults] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [duplicatePairs, setDuplicatePairs] = useState([]);
+  const [isModelLoading, setIsModelLoading] = useState(false);
   const [isCheckingDuplicates, setIsCheckingDuplicates] = useState(false);
   const fileInputRef = useRef(null);
 
+  // Use persistent state from parent
+  const { imageResults, duplicatePairs, model } = persistentState;
+
   // Backend URL from environment variable
-  const BACKEND_URL = process.env.REACT_APP_BACKEND_URL 
+  const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:8000";
 
   // Your Teachable Machine model URL - replace with your actual model URL
-  const MODEL_URL = process.env.TEACHABLE_MACHINE_URL 
+  const MODEL_URL = process.env.TEACHABLE_MACHINE_URL || "https://teachablemachine.withgoogle.com/models/6UdJBojDI/";
 
-  // Extract GPS coordinates from EXIF data
+  // Update coordinates when imageResults change
+  useEffect(() => {
+    if (onCoordinatesUpdate && imageResults.length > 0) {
+      const coordinatesData = imageResults
+        .filter(result => result.location) // Only include results with location data
+        .map(result => ({
+          id: result.id,
+          fileName: result.file.name,
+          location: result.location,
+          predictions: result.predictions,
+          timestamp: result.timestamp
+        }));
+      
+      onCoordinatesUpdate(coordinatesData);
+    }
+  }, [imageResults, onCoordinatesUpdate]);
+
   // Helper function to convert DMS (Degrees, Minutes, Seconds) to Decimal Degrees
   const convertDMSToDD = (dms, ref) => {
     let dd = dms[0] + dms[1] / 60 + dms[2] / 3600;
@@ -62,7 +79,7 @@ const TeachableMachineUpload = () => {
 
       if (window.tmImage) {
         const loadedModel = await window.tmImage.load(modelURL, metadataURL);
-        setModel(loadedModel);
+        onStateChange(prev => ({ ...prev, model: loadedModel }));
         return loadedModel;
       } else {
         throw new Error('Teachable Machine library not loaded');
@@ -74,7 +91,7 @@ const TeachableMachineUpload = () => {
     } finally {
       setIsModelLoading(false);
     }
-  }, [model, MODEL_URL]);
+  }, [model, MODEL_URL, onStateChange]);
 
   // Convert image to base64
   const imageToBase64 = (imageElement) => {
@@ -158,7 +175,7 @@ const TeachableMachineUpload = () => {
       if (response.ok) {
         const duplicateData = await response.json();
         console.log('Received duplicate data:', duplicateData);
-        setDuplicatePairs(duplicateData.similar_pairs || []);
+        onStateChange(prev => ({ ...prev, duplicatePairs: duplicateData.similar_pairs || [] }));
       } else {
         const errorText = await response.text();
         console.error('Backend error:', response.status, errorText);
@@ -221,11 +238,12 @@ const TeachableMachineUpload = () => {
         }
       }
 
-      setImageResults(prev => [...prev, ...newResults]);
+      const updatedResults = [...imageResults, ...newResults];
+      onStateChange(prev => ({ ...prev, imageResults: updatedResults }));
 
       // Send images with location data to backend
       if (newResults.length > 0) {
-        await sendMangoLocationsToBackend(newResults);
+        await sendMangoLocationsToBackend(updatedResults);
       }
 
     } catch (error) {
@@ -257,7 +275,10 @@ const TeachableMachineUpload = () => {
 
       if (response.ok) {
         // Remove the pair from duplicates list
-        setDuplicatePairs(prev => prev.filter(pair => pair.pairId !== pairId));
+        onStateChange(prev => ({ 
+          ...prev, 
+          duplicatePairs: prev.duplicatePairs.filter(pair => pair.pairId !== pairId)
+        }));
 
         // Remove images from results if needed
         if (action === 'keep_first_remove_second') {
@@ -277,29 +298,35 @@ const TeachableMachineUpload = () => {
     console.log('Attempting to remove image with ID:', id, typeof id);
     console.log('Current imageResults IDs:', imageResults.map(r => ({ id: r.id, type: typeof r.id })));
 
-    setImageResults(prev => {
-      const updated = prev.filter(result => String(result.id) !== String(id)); // Fixed: !== instead of ===
-      const toRemove = prev.find(result => String(result.id) === String(id));
-      if (toRemove) {
-        URL.revokeObjectURL(toRemove.imageUrl);
-        console.log('Successfully removed image:', toRemove.file.name);
-      } else {
-        console.log('Could not find image to remove with ID:', id);
-      }
-      return updated;
-    });
+    const toRemove = imageResults.find(result => String(result.id) === String(id));
+    if (toRemove) {
+      URL.revokeObjectURL(toRemove.imageUrl);
+      console.log('Successfully removed image:', toRemove.file.name);
+    } else {
+      console.log('Could not find image to remove with ID:', id);
+    }
 
-    // Also remove from duplicate pairs if it exists
-    setDuplicatePairs(prev => prev.filter(pair =>
-      String(pair.imageId1) !== String(id) && String(pair.imageId2) !== String(id)
-    ));
+    onStateChange(prev => ({
+      ...prev,
+      imageResults: prev.imageResults.filter(result => String(result.id) !== String(id)),
+      duplicatePairs: prev.duplicatePairs.filter(pair =>
+        String(pair.imageId1) !== String(id) && String(pair.imageId2) !== String(id)
+      )
+    }));
   };
 
   // Clear all results
   const clearAllResults = () => {
     imageResults.forEach(result => URL.revokeObjectURL(result.imageUrl));
-    setImageResults([]);
-    setDuplicatePairs([]);
+    onStateChange(prev => ({
+      ...prev,
+      imageResults: [],
+      duplicatePairs: []
+    }));
+    // Clear coordinates from parent when clearing all results
+    if (onCoordinatesUpdate) {
+      onCoordinatesUpdate([]);
+    }
   };
 
   return (
@@ -322,7 +349,7 @@ const TeachableMachineUpload = () => {
           📤 Teachable Machine Mango Classifier
         </h2>
         <p style={{ color: '#666', fontSize: '1rem', margin: 0 }}>
-          Upload images to classify mango trees and detect nearby duplicates using GPS location data.
+          Upload images to classify mango trees and detect nearby duplicates using GPS location data. Images with GPS coordinates will appear on the map.
         </p>
       </div>
 
@@ -403,6 +430,37 @@ const TeachableMachineUpload = () => {
           </label>
         </div>
       </div>
+
+      {/* Map Integration Status */}
+      {imageResults.filter(result => result.location).length > 0 && (
+        <div style={{
+          background: '#e8f5e8',
+          border: '1px solid #4CAF50',
+          borderRadius: '8px',
+          padding: '15px',
+          marginBottom: '25px'
+        }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            color: '#2E7D32',
+            fontWeight: '600'
+          }}>
+            <MapPin size={20} />
+            <span>
+              {imageResults.filter(result => result.location).length} images with GPS coordinates have been sent to the map!
+            </span>
+          </div>
+          <p style={{ 
+            margin: '8px 0 0 30px', 
+            color: '#4a7c59', 
+            fontSize: '0.9rem' 
+          }}>
+            Switch to the "🚜 Farm Plots Map" tab to view these images on the map.
+          </p>
+        </div>
+      )}
 
       {/* Duplicate Pairs Section */}
       {duplicatePairs.length > 0 && (
@@ -602,6 +660,16 @@ const TeachableMachineUpload = () => {
                 return mangoTreePrediction && mangoTreePrediction.probability > 0.5;
               }).length} mango trees detected
             </span>
+            <span style={{
+              background: '#e3f2fd',
+              color: '#1976d2',
+              padding: '4px 12px',
+              borderRadius: '12px',
+              fontSize: '0.8rem',
+              fontWeight: '600'
+            }}>
+              {imageResults.filter(result => result.location).length} with GPS
+            </span>
           </h2>
           <button 
             onClick={clearAllResults}
@@ -669,6 +737,26 @@ const TeachableMachineUpload = () => {
                 >
                   <X size={16} />
                 </button>
+                {/* GPS indicator */}
+                {result.location && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '10px',
+                    left: '10px',
+                    background: '#4CAF50',
+                    color: 'white',
+                    padding: '4px 8px',
+                    borderRadius: '12px',
+                    fontSize: '0.7rem',
+                    fontWeight: '600',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}>
+                    <MapPin size={12} />
+                    GPS
+                  </div>
+                )}
               </div>
 
               <div style={{ padding: '15px' }}>
@@ -845,8 +933,10 @@ const TeachableMachineUpload = () => {
         <h4 style={{ color: '#1976d2', marginBottom: '15px', fontSize: '1.1rem' }}>📋 Instructions:</h4>
         <ul style={{ paddingLeft: '20px', color: '#1565c0', lineHeight: '1.6' }}>
           <li>Upload images with GPS location data for classification</li>
+          <li>Images with GPS coordinates will automatically appear on the Farm Plots Map</li>
           <li>Images will be automatically sent to the backend for proximity checking</li>
           <li>If images are found within 1 meter of each other, you'll see duplicate resolution options</li>
+          <li>Switch to "🚜 Farm Plots Map" tab to view uploaded images on the map</li>
           <li>Update TEACHABLE_MACHINE_URL and REACT_APP_BACKEND_URL in your environment</li>
           <li>Each image can be removed individually using the X button</li>
         </ul>
