@@ -387,7 +387,7 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
       )}
 
       {/* Farmer Info Card */}
-      <div style={{
+      {/* <div style={{
         background: 'linear-gradient(135deg, #4CAF50 0%, #45a049 100%)',
         borderRadius: '15px',
         padding: '20px',
@@ -401,7 +401,7 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
         <p style={{ margin: '0', fontSize: '1.1rem', fontWeight: '600' }}>
           Farmer ID: <span style={{ fontFamily: 'monospace', background: 'rgba(255,255,255,0.2)', padding: '4px 8px', borderRadius: '4px' }}>{farmerId}</span>
         </p>
-      </div>
+      </div> */}
 
       {/* Map Section */}
       <div style={{

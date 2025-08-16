@@ -402,35 +402,6 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
         </div>
       </div>
 
-      {/* Model Selection */}
-      <div style={{ marginBottom: '25px' }}>
-        <h3 style={{ color: '#4a7c59', marginBottom: '15px' }}>Select Model:</h3>
-        <div style={{ display: 'flex', gap: '20px' }}>
-          <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-            <input
-              type="radio"
-              value="teachable_machine"
-              checked={modelType === 'teachable_machine'}
-              onChange={(e) => setModelType(e.target.value)}
-              disabled={isProcessing}
-              style={{ marginRight: '8px' }}
-            />
-            Teachable Machine
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-            <input
-              type="radio"
-              value="mobilenet"
-              checked={modelType === 'mobilenet'}
-              onChange={(e) => setModelType(e.target.value)}
-              disabled={isProcessing}
-              style={{ marginRight: '8px' }}
-            />
-            Fine-tuned MobileNetV2
-          </label>
-        </div>
-      </div>
-
       {/* Map Integration Status */}
       {imageResults.filter(result => result.location).length > 0 && (
         <div style={{
@@ -924,7 +895,7 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
       )}
 
       {/* Instructions */}
-      <div style={{
+      {/* <div style={{
         background: '#e3f2fd',
         padding: '20px',
         borderRadius: '10px',
@@ -940,7 +911,7 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
           <li>Update TEACHABLE_MACHINE_URL and REACT_APP_BACKEND_URL in your environment</li>
           <li>Each image can be removed individually using the X button</li>
         </ul>
-      </div>
+      </div> */}
 
       <style jsx>{`
         @keyframes spin {

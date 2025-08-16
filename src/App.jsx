@@ -9,7 +9,7 @@ import FarmPlotsMap from './components/FarmPlotsMap';
 import TeachableMachineUpload from './components/TeachableMachineUpload';
 
 function App() {
-  const [currentMode, setCurrentMode] = useState('disease');
+  const [currentMode, setCurrentMode] = useState('weather');
   const [isLoading, setIsLoading] = useState(false);
   const [loadingText, setLoadingText] = useState('');
   const [results, setResults] = useState(null);
@@ -946,12 +946,8 @@ if (results.agent_response && results.agent_response.type === 'predictive_adviso
           flexWrap: 'wrap'
         }}>
            {[
-            { mode: 'disease', label: '🔬 Disease Detection', color: '#4a7c59' },
-            { mode: 'schemes', label: '📋 Government Schemes', color: '#667eea' },
-            { mode: 'consultant', label: '🤖 Farm AI Consultants', color: '#28a745' },
-            { mode: 'predictive', label: '🔮 Farm Predictive Advisories', color: '#0891b2' },
             { mode: 'weather', label: '🚜 Farm Plots Map', color: '#ff6b35' },
-            { mode: 'teachable', label: '🧠 Upload Images1', color: '#a855f7' }
+            { mode: 'teachable', label: '🧠 Upload Images', color: '#a855f7' }
           ].map(({ mode, label, color }) => (
             <button
               key={mode}
@@ -969,7 +965,7 @@ if (results.agent_response && results.agent_response.type === 'predictive_adviso
 
         <main>
           {/* Content Sections */}
-          {currentMode === 'disease' && (
+          {/* {currentMode === 'disease' && (
             <DiseaseDetection onAnalyze={handleAnalyze} isLoading={isLoading} />
           )}
 
@@ -1001,7 +997,7 @@ if (results.agent_response && results.agent_response.type === 'predictive_adviso
     onAnalyze={handleAnalyze}
     isLoading={isLoading}
   />
-)}
+)} */}
 
           {currentMode === 'weather' && (
             < FarmPlotsMap uploadedImageCoordinates={uploadedImageCoordinates}/>
