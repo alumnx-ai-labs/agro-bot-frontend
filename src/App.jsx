@@ -951,7 +951,7 @@ if (results.agent_response && results.agent_response.type === 'predictive_adviso
             { mode: 'consultant', label: '🤖 Farm AI Consultants', color: '#28a745' },
             { mode: 'predictive', label: '🔮 Farm Predictive Advisories', color: '#0891b2' },
             { mode: 'weather', label: '🚜 Farm Plots Map', color: '#ff6b35' },
-            { mode: 'teachable', label: '🧠 Upload Images', color: '#a855f7' }
+            { mode: 'teachable', label: '🧠 Upload Images1', color: '#a855f7' }
           ].map(({ mode, label, color }) => (
             <button
               key={mode}
