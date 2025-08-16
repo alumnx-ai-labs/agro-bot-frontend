@@ -15,7 +15,7 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
   const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:8000";
 
   // Your Teachable Machine model URL - replace with your actual model URL
-  const MODEL_URL = process.env.TEACHABLE_MACHINE_URL || "https://teachablemachine.withgoogle.com/models/6UdJBojDI/";
+  const MODEL_URL = process.env.REACT_APP_TEACHABLE_MACHINE_URL || "https://teachablemachine.withgoogle.com/models/6UdJBojDI/";
 
   // Update coordinates when imageResults change
   useEffect(() => {
