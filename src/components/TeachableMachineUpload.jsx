@@ -346,7 +346,7 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
           alignItems: 'center', 
           gap: '10px' 
         }}>
-          📤 Teachable Machine Mango Classifier
+          📤 Mango Classifier
         </h2>
         <p style={{ color: '#666', fontSize: '1rem', margin: 0 }}>
           Upload images to classify mango trees and detect nearby duplicates using GPS location data. Images with GPS coordinates will appear on the map.
