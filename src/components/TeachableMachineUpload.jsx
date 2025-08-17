@@ -1,21 +1,23 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { Upload, X, FileImage, AlertCircle, MapPin, Check, Trash2 } from 'lucide-react';
+import { Upload, X, FileImage, AlertCircle, MapPin } from 'lucide-react';
 
 const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesUpdate }) => {
   const [modelType, setModelType] = useState('teachable_machine'); // 'teachable_machine' or 'mobilenet'
   const [isProcessing, setIsProcessing] = useState(false);
   const [isModelLoading, setIsModelLoading] = useState(false);
-  const [isCheckingDuplicates, setIsCheckingDuplicates] = useState(false);
   const fileInputRef = useRef(null);
 
   // Use persistent state from parent
-  const { imageResults, duplicatePairs, model } = persistentState;
+  const { imageResults, model } = persistentState;
 
   // Backend URL from environment variable
   const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:8000";
 
   // Your Teachable Machine model URL - replace with your actual model URL
   const MODEL_URL = process.env.REACT_APP_TEACHABLE_MACHINE_URL || "https://teachablemachine.withgoogle.com/models/6UdJBojDI/";
+
+  // Hard-coded farm configuration
+  const FARM_ID = "689f38a62fc7b82767250cda";
 
   // Update coordinates when imageResults change
   useEffect(() => {
@@ -74,11 +76,35 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
 
     setIsModelLoading(true);
     try {
+      // Try direct URLs first (these sometimes work better for CORS)
+      const directModelURL = "https://storage.googleapis.com/tm-model/6UdJBojDI/model.json";
+      const directMetadataURL = "https://storage.googleapis.com/tm-model/6UdJBojDI/metadata.json";
+      
+      // Fallback to original URLs
       const modelURL = MODEL_URL + "model.json";
       const metadataURL = MODEL_URL + "metadata.json";
 
+      console.log('Checking Teachable Machine availability...');
+      console.log('window.tmImage:', window.tmImage);
+      console.log('Trying direct URLs first...');
+      console.log('Direct Model URL:', directModelURL);
+      console.log('Direct Metadata URL:', directMetadataURL);
+
       if (window.tmImage) {
-        const loadedModel = await window.tmImage.load(modelURL, metadataURL);
+        console.log('Teachable Machine library found, loading model...');
+        
+        let loadedModel;
+        try {
+          // Try direct URLs first
+          console.log('Attempting to load with direct URLs...');
+          loadedModel = await window.tmImage.load(directModelURL, directMetadataURL);
+        } catch (directError) {
+          console.log('Direct URLs failed, trying original URLs...', directError.message);
+          // Fallback to original URLs
+          loadedModel = await window.tmImage.load(modelURL, metadataURL);
+        }
+        
+        console.log('Model loaded successfully:', loadedModel);
         onStateChange(prev => ({ ...prev, model: loadedModel }));
         return loadedModel;
       } else {
@@ -86,7 +112,14 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
       }
     } catch (error) {
       console.error('Error loading model:', error);
-      alert('Failed to load the model. Please check the model URL and ensure Teachable Machine library is loaded.');
+      console.log('MODEL_URL from env:', process.env.REACT_APP_TEACHABLE_MACHINE_URL);
+      
+      // More detailed error message
+      const errorMessage = error.message.includes('CORS') || error.message.includes('fetch') 
+        ? 'CORS error: The model cannot be loaded from localhost. Please deploy the app or use a different model URL.'
+        : error.message;
+      
+      alert(`Failed to load the model. Error: ${errorMessage}\n\nSuggestions:\n1. Deploy the app to a domain\n2. Use a local model file\n3. Set up a proxy server`);
       return null;
     } finally {
       setIsModelLoading(false);
@@ -140,50 +173,95 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
     }
   };
 
-  // Send images with location data to backend
-  const sendMangoLocationsToBackend = async (allImages) => {
-    // Filter only images that have location data
-    const imagesWithLocation = allImages.filter(img => img.location !== null);
-
-    if (imagesWithLocation.length === 0) {
-      console.log('No images with location data to send to backend');
-      return;
+  // Determine crop type based on model predictions
+  const determineCropType = (predictions) => {
+    if (!predictions || predictions.length === 0) {
+      return "Not Mango";
     }
 
+    // Find the highest probability prediction
+    const topPrediction = predictions.reduce((prev, current) => 
+      (prev.probability > current.probability) ? prev : current
+    );
+
+    console.log('Top prediction:', topPrediction);
+
+    // Check the actual class name and confidence
+    if (topPrediction.className === 'mango_tree' && topPrediction.probability > 0.5) {
+      return "Mango";
+    } else if (topPrediction.className === 'not_mango_tree' && topPrediction.probability > 0.5) {
+      return "Not Mango";
+    } else {
+      // If confidence is low, default to "Not Mango"
+      return "Not Mango";
+    }
+  };
+
+  // Save farm data to backend
+  const saveFarmData = async (location, predictions) => {
+    if (!location) {
+      console.log('No location data to save');
+      return { 
+        saved: false, 
+        isDuplicate: false,
+        message: 'No GPS coordinates available' 
+      };
+    }
+
+    // Determine crop type based on predictions
+    const cropType = determineCropType(predictions);
+
     try {
-      setIsCheckingDuplicates(true);
+      console.log(`Saving farm data for coordinates: ${location.latitude}, ${location.longitude}`);
+      console.log(`Detected crop type: ${cropType}`);
 
-      const locationData = imagesWithLocation.map(img => ({
-        imageName: img.file.name,
-        latitude: img.location.latitude,
-        longitude: img.location.longitude,
-        imageId: String(img.id)
-      }));
+      const requestPayload = {
+        latitude: location.latitude.toString(),
+        longitude: location.longitude.toString(),
+        farmId: FARM_ID,
+        cropType: cropType
+      };
 
-      console.log(`Sending ${locationData.length} images with location data (out of ${allImages.length} total):`, locationData);
+      console.log('Request payload:', requestPayload);
 
-      const response = await fetch(`${BACKEND_URL}/check-proximity`, {
+      const response = await fetch(`${BACKEND_URL}/save-farm-data`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ locations: locationData })
+        body: JSON.stringify(requestPayload)
       });
 
-      console.log('Response status:', response.status);
-
       if (response.ok) {
-        const duplicateData = await response.json();
-        console.log('Received duplicate data:', duplicateData);
-        onStateChange(prev => ({ ...prev, duplicatePairs: duplicateData.similar_pairs || [] }));
+        const result = await response.json();
+        console.log('Farm data save response:', result);
+        
+        // Ensure the response has the expected structure
+        return {
+          latitude: result.latitude || location.latitude.toString(),
+          longitude: result.longitude || location.longitude.toString(),
+          cropType: result.cropType || cropType,
+          farmId: result.farmId || FARM_ID,
+          isDuplicate: result.isDuplicate || false,
+          saved: result.saved !== undefined ? result.saved : true,
+          message: result.message || (result.saved ? 'Successfully saved to farm database' : 'Failed to save')
+        };
       } else {
         const errorText = await response.text();
-        console.error('Backend error:', response.status, errorText);
+        console.error('Failed to save farm data:', response.status, errorText);
+        return { 
+          saved: false, 
+          isDuplicate: false,
+          message: `Failed to save: ${response.status} ${errorText}` 
+        };
       }
     } catch (error) {
-      console.error('Error checking for duplicates:', error);
-    } finally {
-      setIsCheckingDuplicates(false);
+      console.error('Error saving farm data:', error);
+      return { 
+        saved: false, 
+        isDuplicate: false,
+        message: `Error saving farm data: ${error.message}` 
+      };
     }
   };
 
@@ -220,13 +298,17 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
               const predictions = await classifyImage(img, loadedModel);
 
               if (predictions) {
+                // Save farm data to backend if location is available
+                const farmDataResponse = await saveFarmData(location, predictions);
+
                 const result = {
                   id: Date.now() + Math.random(),
                   file: file,
                   imageUrl: imageUrl,
-                  predictions: predictions, // Keep original order for now, will sort in display
+                  predictions: predictions,
                   timestamp: new Date().toLocaleTimeString(),
-                  location: location
+                  location: location,
+                  farmDataSaved: farmDataResponse // Store the farm data save response
                 };
 
                 newResults.push(result);
@@ -241,11 +323,6 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
       const updatedResults = [...imageResults, ...newResults];
       onStateChange(prev => ({ ...prev, imageResults: updatedResults }));
 
-      // Send images with location data to backend
-      if (newResults.length > 0) {
-        await sendMangoLocationsToBackend(updatedResults);
-      }
-
     } catch (error) {
       console.error('Error processing images:', error);
       alert('Error processing images. Please try again.');
@@ -254,42 +331,6 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
-    }
-  };
-
-  // Handle duplicate resolution
-  const handleDuplicateAction = async (pairId, action, imageId1, imageId2) => {
-    try {
-      const response = await fetch(`${BACKEND_URL}/save-decision`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          pairId: pairId,
-          action: action,
-          imageId1: imageId1,
-          imageId2: imageId2
-        })
-      });
-
-      if (response.ok) {
-        // Remove the pair from duplicates list
-        onStateChange(prev => ({ 
-          ...prev, 
-          duplicatePairs: prev.duplicatePairs.filter(pair => pair.pairId !== pairId)
-        }));
-
-        // Remove images from results if needed
-        if (action === 'keep_first_remove_second') {
-          removeImageResult(imageId2);
-        } else if (action === 'remove_first_keep_second') {
-          removeImageResult(imageId1);
-        }
-        // For 'save_both', we don't remove any images
-      }
-    } catch (error) {
-      console.error('Error saving decision:', error);
     }
   };
 
@@ -308,10 +349,7 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
 
     onStateChange(prev => ({
       ...prev,
-      imageResults: prev.imageResults.filter(result => String(result.id) !== String(id)),
-      duplicatePairs: prev.duplicatePairs.filter(pair =>
-        String(pair.imageId1) !== String(id) && String(pair.imageId2) !== String(id)
-      )
+      imageResults: prev.imageResults.filter(result => String(result.id) !== String(id))
     }));
   };
 
@@ -320,8 +358,7 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
     imageResults.forEach(result => URL.revokeObjectURL(result.imageUrl));
     onStateChange(prev => ({
       ...prev,
-      imageResults: [],
-      duplicatePairs: []
+      imageResults: []
     }));
     // Clear coordinates from parent when clearing all results
     if (onCoordinatesUpdate) {
@@ -346,10 +383,10 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
           alignItems: 'center', 
           gap: '10px' 
         }}>
-          📤 Mango Classifier
+          Crop Classifier
         </h2>
         <p style={{ color: '#666', fontSize: '1rem', margin: 0 }}>
-          Upload images to classify mango trees and detect nearby duplicates using GPS location data. Images with GPS coordinates will appear on the map.
+          Upload images to classify crops and save location data to the farm database.
         </p>
       </div>
 
@@ -420,7 +457,7 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
           }}>
             <MapPin size={20} />
             <span>
-              {imageResults.filter(result => result.location).length} images with GPS coordinates have been sent to the map!
+              {imageResults.filter(result => result.location).length} images with GPS coordinates processed!
             </span>
           </div>
           <p style={{ 
@@ -428,179 +465,8 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
             color: '#4a7c59', 
             fontSize: '0.9rem' 
           }}>
-            Switch to the "🚜 Farm Plots Map" tab to view these images on the map.
+            Images have been classified and location data sent to the farm database.
           </p>
-        </div>
-      )}
-
-      {/* Duplicate Pairs Section */}
-      {duplicatePairs.length > 0 && (
-        <div style={{ marginBottom: '25px' }}>
-          <h2 style={{ 
-            color: '#dc3545', 
-            marginBottom: '20px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px'
-          }}>
-            🔍 Nearby Mango Trees Found ({duplicatePairs.length} pairs)
-            {isCheckingDuplicates && <span style={{ color: '#666' }}> - Checking...</span>}
-          </h2>
-
-          {duplicatePairs.map((pair) => {
-            const image1 = imageResults.find(img => String(img.id) === String(pair.imageId1));
-            const image2 = imageResults.find(img => String(img.id) === String(pair.imageId2));
-
-            if (!image1 || !image2) {
-              console.log('Could not find images for pair:', pair, 'Available images:', imageResults.map(img => ({ id: img.id, name: img.file.name })));
-              return null;
-            }
-
-            return (
-              <div key={pair.pairId} style={{
-                border: '1px solid #dee2e6',
-                borderRadius: '10px',
-                padding: '20px',
-                marginBottom: '20px',
-                background: '#fff8f0'
-              }}>
-                <div style={{ marginBottom: '15px' }}>
-                  <p style={{ 
-                    color: '#856404', 
-                    fontWeight: '600',
-                    margin: 0 
-                  }}>
-                    📏 Distance: {pair.distance ? pair.distance.toFixed(2) : 'Unknown'}m apart
-                  </p>
-                </div>
-
-                <div style={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: '1fr 1fr', 
-                  gap: '20px',
-                  marginBottom: '20px'
-                }}>
-                  <div style={{ textAlign: 'center' }}>
-                    <img 
-                      src={image1.imageUrl} 
-                      alt={image1.file.name}
-                      style={{
-                        width: '100%',
-                        maxWidth: '200px',
-                        height: '150px',
-                        objectFit: 'cover',
-                        borderRadius: '8px',
-                        border: '2px solid #dee2e6'
-                      }}
-                    />
-                    <p style={{ margin: '8px 0 4px', fontWeight: '600' }}>{image1.file.name}</p>
-                    <p style={{ 
-                      margin: 0, 
-                      color: '#666', 
-                      fontSize: '0.85rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '4px'
-                    }}>
-                      <MapPin size={14} />
-                      {image1.location ? `${image1.location.latitude.toFixed(6)}, ${image1.location.longitude.toFixed(6)}` : 'No location'}
-                    </p>
-                  </div>
-
-                  <div style={{ textAlign: 'center' }}>
-                    <img 
-                      src={image2.imageUrl} 
-                      alt={image2.file.name}
-                      style={{
-                        width: '100%',
-                        maxWidth: '200px',
-                        height: '150px',
-                        objectFit: 'cover',
-                        borderRadius: '8px',
-                        border: '2px solid #dee2e6'
-                      }}
-                    />
-                    <p style={{ margin: '8px 0 4px', fontWeight: '600' }}>{image2.file.name}</p>
-                    <p style={{ 
-                      margin: 0, 
-                      color: '#666', 
-                      fontSize: '0.85rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '4px'
-                    }}>
-                      <MapPin size={14} />
-                      {image2.location ? `${image2.location.latitude.toFixed(6)}, ${image2.location.longitude.toFixed(6)}` : 'No location'}
-                    </p>
-                  </div>
-                </div>
-
-                <div style={{ 
-                  display: 'flex', 
-                  gap: '10px', 
-                  justifyContent: 'center',
-                  flexWrap: 'wrap'
-                }}>
-                  <button
-                    onClick={() => handleDuplicateAction(pair.pairId, 'save_both', pair.imageId1, pair.imageId2)}
-                    style={{
-                      background: '#28a745',
-                      color: 'white',
-                      border: 'none',
-                      padding: '8px 16px',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      fontSize: '0.9rem'
-                    }}
-                  >
-                    <Check size={16} />
-                    Save Both
-                  </button>
-                  <button
-                    onClick={() => handleDuplicateAction(pair.pairId, 'keep_first_remove_second', pair.imageId1, pair.imageId2)}
-                    style={{
-                      background: '#ffc107',
-                      color: '#212529',
-                      border: 'none',
-                      padding: '8px 16px',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      fontSize: '0.9rem'
-                    }}
-                  >
-                    <Trash2 size={16} />
-                    Keep First
-                  </button>
-                  <button
-                    onClick={() => handleDuplicateAction(pair.pairId, 'remove_first_keep_second', pair.imageId1, pair.imageId2)}
-                    style={{
-                      background: '#dc3545',
-                      color: 'white',
-                      border: 'none',
-                      padding: '8px 16px',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      fontSize: '0.9rem'
-                    }}
-                  >
-                    <Trash2 size={16} />
-                    Keep Second
-                  </button>
-                </div>
-              </div>
-            );
-          })}
         </div>
       )}
 
@@ -615,22 +481,7 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
           borderBottom: '2px solid #f0f0f0'
         }}>
           <h2 style={{ color: '#2c5530', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
-            📊 Classification Results ({imageResults.length})
-            <span style={{
-              background: '#d4edda',
-              color: '#155724',
-              padding: '4px 12px',
-              borderRadius: '12px',
-              fontSize: '0.8rem',
-              fontWeight: '600'
-            }}>
-              {imageResults.filter(result => {
-                const mangoTreePrediction = result.predictions.find(p =>
-                  p.className.toLowerCase() === 'mango_tree'
-                );
-                return mangoTreePrediction && mangoTreePrediction.probability > 0.5;
-              }).length} mango trees detected
-            </span>
+            Classification Results ({imageResults.length})
             <span style={{
               background: '#e3f2fd',
               color: '#1976d2',
@@ -640,6 +491,26 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
               fontWeight: '600'
             }}>
               {imageResults.filter(result => result.location).length} with GPS
+            </span>
+            <span style={{
+              background: '#d4edda',
+              color: '#155724',
+              padding: '4px 12px',
+              borderRadius: '12px',
+              fontSize: '0.8rem',
+              fontWeight: '600'
+            }}>
+              {imageResults.filter(result => result.farmDataSaved?.saved).length} saved to farm DB
+            </span>
+            <span style={{
+              background: '#fff3cd',
+              color: '#856404',
+              padding: '4px 12px',
+              borderRadius: '12px',
+              fontSize: '0.8rem',
+              fontWeight: '600'
+            }}>
+              {imageResults.filter(result => result.farmDataSaved?.isDuplicate).length} duplicates found
             </span>
           </h2>
           <button 
@@ -728,6 +599,25 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
                     GPS
                   </div>
                 )}
+                {/* Farm data saved indicator */}
+                {result.farmDataSaved && (
+                  <div style={{
+                    position: 'absolute',
+                    top: result.location ? '45px' : '10px',
+                    left: '10px',
+                    background: result.farmDataSaved.saved ? '#28a745' : result.farmDataSaved.isDuplicate ? '#ffc107' : '#dc3545',
+                    color: result.farmDataSaved.saved ? 'white' : result.farmDataSaved.isDuplicate ? '#212529' : 'white',
+                    padding: '4px 8px',
+                    borderRadius: '12px',
+                    fontSize: '0.7rem',
+                    fontWeight: '600',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}>
+                    {result.farmDataSaved.saved ? 'SAVED' : result.farmDataSaved.isDuplicate ? 'DUPLICATE' : 'FAILED'}
+                  </div>
+                )}
               </div>
 
               <div style={{ padding: '15px' }}>
@@ -773,6 +663,47 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
                   </div>
                 )}
 
+                {/* Farm data save status */}
+                {result.farmDataSaved && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '6px',
+                    marginBottom: '10px',
+                    padding: '8px',
+                    borderRadius: '6px',
+                    background: result.farmDataSaved.saved ? '#d4edda' : result.farmDataSaved.isDuplicate ? '#fff3cd' : '#f8d7da',
+                    border: `1px solid ${result.farmDataSaved.saved ? '#c3e6cb' : result.farmDataSaved.isDuplicate ? '#ffeaa7' : '#f5c6cb'}`
+                  }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{
+                        fontSize: '0.8rem',
+                        color: result.farmDataSaved.saved ? '#155724' : result.farmDataSaved.isDuplicate ? '#856404' : '#721c24',
+                        fontWeight: '600',
+                        marginBottom: '4px'
+                      }}>
+                        Farm Database Status:
+                      </div>
+                      <div style={{
+                        fontSize: '0.8rem',
+                        color: result.farmDataSaved.saved ? '#155724' : result.farmDataSaved.isDuplicate ? '#856404' : '#721c24'
+                      }}>
+                        {result.farmDataSaved.message || (result.farmDataSaved.saved ? 'Successfully saved' : 'Save failed')}
+                      </div>
+                      {result.farmDataSaved.isDuplicate && (
+                        <div style={{
+                          fontSize: '0.7rem',
+                          color: '#856404',
+                          marginTop: '4px',
+                          fontStyle: 'italic'
+                        }}>
+                          A plant with the same coordinates already exists in this farm
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 <div style={{ marginBottom: '15px' }}>
                   <div style={{ fontSize: '0.8rem', color: '#666' }}>
                     Processed at {result.timestamp}
@@ -781,26 +712,8 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
 
                 <div>
                   <h4 style={{ color: '#2c5530', marginBottom: '10px', fontSize: '1rem' }}>Predictions:</h4>
-                  {/* Sort predictions: mango_tree first, then not_mango_tree, then others by probability */}
                   {result.predictions
-                    .sort((a, b) => {
-                      // Priority order: mango_tree, not_mango_tree, then others by probability
-                      const getPriority = (pred) => {
-                        if (pred.className.toLowerCase() === 'mango_tree') return 1;
-                        if (pred.className.toLowerCase() === 'not_mango_tree') return 2;
-                        return 3;
-                      };
-
-                      const priorityA = getPriority(a);
-                      const priorityB = getPriority(b);
-
-                      if (priorityA !== priorityB) {
-                        return priorityA - priorityB;
-                      }
-
-                      // If same priority, sort by probability (highest first)
-                      return b.probability - a.probability;
-                    })
+                    .sort((a, b) => b.probability - a.probability)
                     .slice(0, 3)
                     .map((prediction, index) => (
                       <div key={index} style={{
@@ -866,12 +779,12 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
         }}>
           <AlertCircle size={64} style={{ marginBottom: '20px' }} />
           <h3 style={{ marginBottom: '10px', color: '#495057' }}>No images uploaded yet</h3>
-          <p>Upload some images to see classification results and check for nearby duplicates.</p>
+          <p>Upload some images to see classification results and save location data to the farm database.</p>
         </div>
       )}
 
       {/* Loading State */}
-      {(isProcessing || isCheckingDuplicates) && (
+      {isProcessing && (
         <div style={{
           textAlign: 'center',
           padding: '40px 20px',
@@ -889,29 +802,10 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
             margin: '0 auto 20px'
           }}></div>
           <p style={{ fontSize: '1.1rem', fontWeight: '600', color: '#495057', margin: 0 }}>
-            {isProcessing ? 'Processing images...' : 'Checking for nearby duplicates...'}
+            Processing images and saving farm data...
           </p>
         </div>
       )}
-
-      {/* Instructions */}
-      {/* <div style={{
-        background: '#e3f2fd',
-        padding: '20px',
-        borderRadius: '10px',
-        marginTop: '25px'
-      }}>
-        <h4 style={{ color: '#1976d2', marginBottom: '15px', fontSize: '1.1rem' }}>📋 Instructions:</h4>
-        <ul style={{ paddingLeft: '20px', color: '#1565c0', lineHeight: '1.6' }}>
-          <li>Upload images with GPS location data for classification</li>
-          <li>Images with GPS coordinates will automatically appear on the Farm Plots Map</li>
-          <li>Images will be automatically sent to the backend for proximity checking</li>
-          <li>If images are found within 1 meter of each other, you'll see duplicate resolution options</li>
-          <li>Switch to "🚜 Farm Plots Map" tab to view uploaded images on the map</li>
-          <li>Update TEACHABLE_MACHINE_URL and REACT_APP_BACKEND_URL in your environment</li>
-          <li>Each image can be removed individually using the X button</li>
-        </ul>
-      </div> */}
 
       <style jsx>{`
         @keyframes spin {
