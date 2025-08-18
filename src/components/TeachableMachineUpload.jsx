@@ -31,7 +31,7 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
           predictions: result.predictions,
           timestamp: result.timestamp
         }));
-      
+
       onCoordinatesUpdate(coordinatesData);
     }
   }, [imageResults, onCoordinatesUpdate]);
@@ -79,7 +79,7 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
       // Try direct URLs first (these sometimes work better for CORS)
       const directModelURL = "https://storage.googleapis.com/tm-model/6UdJBojDI/model.json";
       const directMetadataURL = "https://storage.googleapis.com/tm-model/6UdJBojDI/metadata.json";
-      
+
       // Fallback to original URLs
       const modelURL = MODEL_URL + "model.json";
       const metadataURL = MODEL_URL + "metadata.json";
@@ -92,7 +92,7 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
 
       if (window.tmImage) {
         console.log('Teachable Machine library found, loading model...');
-        
+
         let loadedModel;
         try {
           // Try direct URLs first
@@ -103,7 +103,7 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
           // Fallback to original URLs
           loadedModel = await window.tmImage.load(modelURL, metadataURL);
         }
-        
+
         console.log('Model loaded successfully:', loadedModel);
         onStateChange(prev => ({ ...prev, model: loadedModel }));
         return loadedModel;
@@ -113,12 +113,12 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
     } catch (error) {
       console.error('Error loading model:', error);
       console.log('MODEL_URL from env:', process.env.REACT_APP_TEACHABLE_MACHINE_URL);
-      
+
       // More detailed error message
-      const errorMessage = error.message.includes('CORS') || error.message.includes('fetch') 
+      const errorMessage = error.message.includes('CORS') || error.message.includes('fetch')
         ? 'CORS error: The model cannot be loaded from localhost. Please deploy the app or use a different model URL.'
         : error.message;
-      
+
       alert(`Failed to load the model. Error: ${errorMessage}\n\nSuggestions:\n1. Deploy the app to a domain\n2. Use a local model file\n3. Set up a proxy server`);
       return null;
     } finally {
@@ -180,7 +180,7 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
     }
 
     // Find the highest probability prediction
-    const topPrediction = predictions.reduce((prev, current) => 
+    const topPrediction = predictions.reduce((prev, current) =>
       (prev.probability > current.probability) ? prev : current
     );
 
@@ -198,13 +198,13 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
   };
 
   // Save farm data to backend
-  const saveFarmData = async (location, predictions) => {
+  const saveFarmData = async (location, predictions, file) => {
     if (!location) {
       console.log('No location data to save');
-      return { 
-        saved: false, 
+      return {
+        saved: false,
         isDuplicate: false,
-        message: 'No GPS coordinates available' 
+        message: 'No GPS coordinates available'
       };
     }
 
@@ -219,7 +219,8 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
         latitude: location.latitude.toString(),
         longitude: location.longitude.toString(),
         farmId: FARM_ID,
-        cropType: cropType
+        cropType: cropType,
+        fileName: file.name
       };
 
       console.log('Request payload:', requestPayload);
@@ -235,7 +236,7 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
       if (response.ok) {
         const result = await response.json();
         console.log('Farm data save response:', result);
-        
+
         // Ensure the response has the expected structure
         return {
           latitude: result.latitude || location.latitude.toString(),
@@ -249,18 +250,18 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
       } else {
         const errorText = await response.text();
         console.error('Failed to save farm data:', response.status, errorText);
-        return { 
-          saved: false, 
+        return {
+          saved: false,
           isDuplicate: false,
-          message: `Failed to save: ${response.status} ${errorText}` 
+          message: `Failed to save: ${response.status} ${errorText}`
         };
       }
     } catch (error) {
       console.error('Error saving farm data:', error);
-      return { 
-        saved: false, 
+      return {
+        saved: false,
         isDuplicate: false,
-        message: `Error saving farm data: ${error.message}` 
+        message: `Error saving farm data: ${error.message}`
       };
     }
   };
@@ -299,7 +300,7 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
 
               if (predictions) {
                 // Save farm data to backend if location is available
-                const farmDataResponse = await saveFarmData(location, predictions);
+                const farmDataResponse = await saveFarmData(location, predictions, file);
 
                 const result = {
                   id: Date.now() + Math.random(),
@@ -375,13 +376,13 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
       fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
     }}>
       <div style={{ marginBottom: '30px' }}>
-        <h2 style={{ 
-          color: '#2c5530', 
-          marginBottom: '10px', 
-          fontSize: '1.8rem', 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: '10px' 
+        <h2 style={{
+          color: '#2c5530',
+          marginBottom: '10px',
+          fontSize: '1.8rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px'
         }}>
           Crop Classifier
         </h2>
@@ -460,10 +461,10 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
               {imageResults.filter(result => result.location).length} images with GPS coordinates processed!
             </span>
           </div>
-          <p style={{ 
-            margin: '8px 0 0 30px', 
-            color: '#4a7c59', 
-            fontSize: '0.9rem' 
+          <p style={{
+            margin: '8px 0 0 30px',
+            color: '#4a7c59',
+            fontSize: '0.9rem'
           }}>
             Images have been classified and location data sent to the farm database.
           </p>
@@ -513,7 +514,7 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
               {imageResults.filter(result => result.farmDataSaved?.isDuplicate).length} duplicates found
             </span>
           </h2>
-          <button 
+          <button
             onClick={clearAllResults}
             style={{
               background: '#dc3545',

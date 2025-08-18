@@ -8,7 +8,7 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
   const [farmerId, setFarmerId] = useState('lkjlkjrl3jhr23h4343');
   const [showCoordinatePopup, setShowCoordinatePopup] = useState(false);
   const [clickedCoordinate, setClickedCoordinate] = useState(null);
-  
+
   // Google Maps refs
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -51,11 +51,11 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
     script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.REACT_APP_GOOGLE_MAPS_API_KEY}&libraries=places`;
     script.async = true;
     script.defer = true;
-    
+
     script.onload = () => {
       setMapsLoaded(true);
     };
-    
+
     script.onerror = () => {
       console.error('Failed to load Google Maps script');
     };
@@ -67,17 +67,17 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
     try {
       /// Call the /dashboard endpoint to get latitude and longitude data
       const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/dashboard`);
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const data = await response.json();
       console.log('Dashboard data:', data);
-    
+
       const allPlants = [];
       let plotIndex = 1;
-      
+
       data.forEach((document) => {
         if (document.plants && Array.isArray(document.plants)) {
           document.plants.forEach((plant) => {
@@ -86,14 +86,15 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
                 plotId: `${plant.cropType}-${plotIndex}`,
                 cropType: plant.cropType,
                 latitude: plant.latitude,
-                longitude: plant.longitude
+                longitude: plant.longitude,
+                fileName: plant.fileName || 'N/A'
               });
               plotIndex++;
             }
           });
         }
       });
-      
+
       setPlots(allPlants);
       setLoading(false);
     } catch (error) {
@@ -114,22 +115,22 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
     uploadedImageCoordinates.forEach((imageData, index) => {
       if (imageData.location) {
         const marker = new window.google.maps.Marker({
-          position: { 
-            lat: parseFloat(imageData.location.latitude), 
-            lng: parseFloat(imageData.location.longitude) 
+          position: {
+            lat: parseFloat(imageData.location.latitude),
+            lng: parseFloat(imageData.location.longitude)
           },
           map: mapInstanceRef.current,
           title: `Uploaded Image: ${imageData.fileName}`,
           icon: {
             url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
-              <svg xmlns="http://www.w3.org/2000/svg" width="35" height="35" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="10" fill="#FF6B35" stroke="#D63031" stroke-width="2"/>
-                <path fill="white" d="M9,12 L12,15 L15,9" stroke="white" stroke-width="1.5"/>
-                <text x="12" y="4" text-anchor="middle" fill="#D63031" font-size="8" font-weight="bold">IMG</text>
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24">
+                <path fill="#FF6B35" stroke="#D63031" stroke-width="1.5" d="M12,2 Q8,6 8,12 Q8,16 12,20 Q16,16 16,12 Q16,6 12,2 Z"/>
+                <circle cx="12" cy="12" r="3" fill="white"/>
+                <text x="12" y="14" text-anchor="middle" fill="#D63031" font-size="6" font-weight="bold">📷</text>
               </svg>
             `),
-            scaledSize: { width: 35, height: 35 },
-            anchor: { x: 17.5, y: 35 }
+            scaledSize: { width: 20, height: 20 },
+            anchor: { x: 10, y: 20 }
           }
         });
 
@@ -157,19 +158,19 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
     });
 
     const validImageCoordinates = uploadedImageCoordinates.filter(img => img.location);
-    
+
     if (validImageCoordinates.length > 0 && mapInstanceRef.current && plots.length === 0) {
       setTimeout(() => {
         const bounds = new window.google.maps.LatLngBounds();
-        
+
         // Include all uploaded image coordinates
         validImageCoordinates.forEach(imageData => {
           bounds.extend(new window.google.maps.LatLng(
-            parseFloat(imageData.location.latitude), 
+            parseFloat(imageData.location.latitude),
             parseFloat(imageData.location.longitude)
           ));
         });
-        
+
         // Fit bounds with padding for better visibility
         mapInstanceRef.current.fitBounds(bounds, {
           top: 80,
@@ -177,12 +178,12 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
           bottom: 80,
           left: 80
         });
-        
+
         // Ensure reasonable zoom level
         setTimeout(() => {
           if (mapInstanceRef.current) {
             const currentZoom = mapInstanceRef.current.getZoom();
-            
+
             if (validImageCoordinates.length === 1) {
               // For single image, use zoom level 15
               mapInstanceRef.current.setZoom(15);
@@ -220,25 +221,28 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
         lat: parseFloat(randomPlot.latitude),
         lng: parseFloat(randomPlot.longitude)
       };
-      mapZoom = 15; 
+      mapZoom = 15;
       console.log('Centering map on:', randomPlot.cropType, 'at', mapCenter);
     }
-    
+
     const map = new window.google.maps.Map(mapRef.current, {
       zoom: mapZoom,
       center: mapCenter,
-      mapTypeId: 'hybrid'
+      mapTypeId: 'hybrid',
+      mapTypeControl: false,
+      fullscreenControl: false,
+      streetViewControl: false
     });
 
     mapInstanceRef.current = map;
 
     plots.forEach((plot, index) => {
       if (plot.latitude && plot.longitude) {
-        
+
         let markerColor = '#4CAF50'; // Default green
         let strokeColor = '#2E7D32';
         let iconText = 'CROP';
-        
+
         if (plot.cropType.toLowerCase().includes('mango')) {
           markerColor = '#FF9800';
           strokeColor = '#F57C00';
@@ -250,22 +254,22 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
         }
 
         const marker = new window.google.maps.Marker({
-          position: { 
-            lat: parseFloat(plot.latitude), 
-            lng: parseFloat(plot.longitude) 
+          position: {
+            lat: parseFloat(plot.latitude),
+            lng: parseFloat(plot.longitude)
           },
           map: map,
           title: `${plot.cropType} - ${plot.plotId}`,
           icon: {
             url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
-              <svg xmlns="http://www.w3.org/2000/svg" width="35" height="35" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="10" fill="${markerColor}" stroke="${strokeColor}" stroke-width="2"/>
-                <path fill="white" d="M8,12 L12,8 L16,12 M12,8 L12,18" stroke="white" stroke-width="2"/>
-                <text x="12" y="22" text-anchor="middle" fill="${strokeColor}" font-size="6" font-weight="bold">${iconText}</text>
-              </svg>
-            `),
-            scaledSize: { width: 35, height: 35 },
-            anchor: { x: 17.5, y: 35 }
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+                      <circle cx="12" cy="18" r="3" fill="${markerColor}" stroke="${strokeColor}" stroke-width="1.5"/>
+                      <path fill="${strokeColor}" d="M12,2 Q10,4 10,8 Q10,12 12,15 Q14,12 14,8 Q14,4 12,2 Z"/>
+                      <circle cx="12" cy="8" r="2" fill="${markerColor}"/>
+                    </svg>
+                  `),
+            scaledSize: { width: 24, height: 24 },
+            anchor: { x: 12, y: 24 }
           }
         });
 
@@ -372,11 +376,11 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
               ×
             </button>
           </div>
-          
+
           <div style={{ marginBottom: '10px' }}>
             <strong style={{ color: '#666', fontSize: '0.9rem' }}>Coordinates:</strong>
-            <div style={{ 
-              fontSize: '0.95rem', 
+            <div style={{
+              fontSize: '0.95rem',
               color: '#333',
               fontFamily: 'monospace',
               marginTop: '5px'
@@ -436,7 +440,7 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
 
       {/* Overlay for popup */}
       {showCoordinatePopup && (
-        <div 
+        <div
           style={{
             position: 'fixed',
             top: 0,
@@ -474,9 +478,9 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
         padding: '25px',
         boxShadow: '0 10px 30px rgba(0,0,0,0.1)'
       }}>
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
           alignItems: 'center',
           marginBottom: '20px'
         }}>
@@ -517,7 +521,7 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
             )}
           </div>
         </div>
-        
+
         {/* Google Maps Container */}
         <div style={{
           background: 'linear-gradient(135deg, #e8f5e8 0%, #c8e6c9 100%)',
@@ -528,10 +532,10 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
           overflow: 'hidden'
         }}>
           {/* Google Maps will render here */}
-          <div 
+          <div
             ref={mapRef}
-            style={{ 
-              height: '100%', 
+            style={{
+              height: '100%',
               width: '100%',
               borderRadius: '12px'
             }}
@@ -583,24 +587,66 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
           }}>
             🌾 Farm Plot Information
           </h3>
-          
-          {plots.map((plot, index) => (
-            <div key={index} style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-              gap: '15px',
-              marginBottom: index < plots.length - 1 ? '20px' : '0',
-              paddingBottom: index < plots.length - 1 ? '20px' : '0',
-              borderBottom: index < plots.length - 1 ? '1px solid #eee' : 'none'
+
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{
+              width: '100%',
+              borderCollapse: 'collapse',
+              background: 'white',
+              borderRadius: '8px',
+              overflow: 'hidden',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
             }}>
-              <div style={{ padding: '15px', background: '#f8f9fa', borderRadius: '8px' }}>
-                <strong>Plot ID:</strong> {plot.plotId}
-              </div>
-              <div style={{ padding: '15px', background: '#f8f9fa', borderRadius: '8px' }}>
-                <strong>Crop Type:</strong> {plot.cropType}
-              </div>
-            </div>
-          ))}
+              <thead>
+                <tr style={{ background: '#4CAF50', color: 'white' }}>
+                  <th style={{ padding: '15px', textAlign: 'left', fontWeight: '600' }}>File Name</th>
+                  <th style={{ padding: '15px', textAlign: 'left', fontWeight: '600' }}>Crop Type</th>
+                  <th style={{ padding: '15px', textAlign: 'left', fontWeight: '600' }}>Latitude</th>
+                  <th style={{ padding: '15px', textAlign: 'left', fontWeight: '600' }}>Longitude</th>
+                </tr>
+              </thead>
+              <tbody>
+                {plots.map((plot, index) => (
+                  <tr key={index} style={{
+                    borderBottom: index < plots.length - 1 ? '1px solid #eee' : 'none',
+                    transition: 'background-color 0.2s ease'
+                  }}
+                    onMouseEnter={(e) => e.target.parentElement.style.backgroundColor = '#f8f9fa'}
+                    onMouseLeave={(e) => e.target.parentElement.style.backgroundColor = 'transparent'}
+                  >
+                    <td style={{
+                      padding: '12px 15px',
+                      fontFamily: 'monospace',
+                      fontSize: '0.9rem',
+                      color: '#666'
+                    }}>
+                      {plot.fileName}
+                    </td>
+                    <td style={{
+                      padding: '12px 15px',
+                      fontWeight: '500'
+                    }}>
+                      {plot.cropType}
+                    </td>
+                    <td style={{
+                      padding: '12px 15px',
+                      fontFamily: 'monospace',
+                      fontSize: '0.9rem'
+                    }}>
+                      {parseFloat(plot.latitude).toFixed(6)}
+                    </td>
+                    <td style={{
+                      padding: '12px 15px',
+                      fontFamily: 'monospace',
+                      fontSize: '0.9rem'
+                    }}>
+                      {parseFloat(plot.longitude).toFixed(6)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -621,10 +667,10 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
           }}>
             {selectedPlot.isImage ? '📷' : '🌾'} {selectedPlot.cropType} {selectedPlot.isImage ? '' : 'Farm Plot'}
           </h3>
-          
+
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
             gap: '15px'
           }}>
             <div style={{ padding: '15px', background: '#f8f9fa', borderRadius: '8px' }}>
@@ -633,6 +679,11 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
             <div style={{ padding: '15px', background: '#f8f9fa', borderRadius: '8px' }}>
               <strong>Type:</strong> {selectedPlot.cropType}
             </div>
+            {!selectedPlot.isImage && (
+              <div style={{ padding: '15px', background: '#f8f9fa', borderRadius: '8px' }}>
+                <strong>Source File:</strong> {selectedPlot.fileName}
+              </div>
+            )}
             {selectedPlot.isImage && (
               <div style={{ padding: '15px', background: '#f8f9fa', borderRadius: '8px' }}>
                 <strong>Coordinates:</strong> {parseFloat(selectedPlot.location?.latitude).toFixed(6)}, {parseFloat(selectedPlot.location?.longitude).toFixed(6)}
