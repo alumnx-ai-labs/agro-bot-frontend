@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 
 const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
   const [plots, setPlots] = useState([]);
+  const [highlightedPlotId, setHighlightedPlotId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedPlot, setSelectedPlot] = useState(null);
   const [mapsLoaded, setMapsLoaded] = useState(false);
@@ -236,22 +237,36 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
 
     mapInstanceRef.current = map;
 
+
+    // Color map for more crop types
+    const cropColorMap = {
+      mango:    { marker: '#FF9800', stroke: '#F57C00' },
+      cotton:   { marker: '#E3F2FD', stroke: '#1976D2' },
+      wheat:    { marker: '#FDD835', stroke: '#FBC02D' },
+      rice:     { marker: '#AED581', stroke: '#689F38' },
+      corn:     { marker: '#FFF176', stroke: '#FBC02D' },
+      tomato:   { marker: '#FF5252', stroke: '#B71C1C' },
+      potato:   { marker: '#A1887F', stroke: '#4E342E' },
+      chili:    { marker: '#D50000', stroke: '#B71C1C' },
+      default:  { marker: '#4CAF50', stroke: '#2E7D32' }
+    };
+
     plots.forEach((plot, index) => {
       if (plot.latitude && plot.longitude) {
+        // Determine color by crop type
+        const cropKey = Object.keys(cropColorMap).find(key => plot.cropType.toLowerCase().includes(key)) || 'default';
+        const { marker: markerColor, stroke: strokeColor } = cropColorMap[cropKey];
 
-        let markerColor = '#4CAF50'; // Default green
-        let strokeColor = '#2E7D32';
-        let iconText = 'CROP';
-
-        if (plot.cropType.toLowerCase().includes('mango')) {
-          markerColor = '#FF9800';
-          strokeColor = '#F57C00';
-          iconText = 'MANGO';
-        } else if (plot.cropType.toLowerCase().includes('cotton')) {
-          markerColor = '#E3F2FD';
-          strokeColor = '#1976D2';
-          iconText = 'COTTON';
-        }
+        // Highlight marker if selected/hovered
+        const isHighlighted = highlightedPlotId === plot.plotId;
+        const markerSvg = `
+          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
+            <circle cx="14" cy="22" r="4" fill="${markerColor}" stroke="${strokeColor}" stroke-width="2"/>
+            <path fill="${strokeColor}" d="M14,3 Q11,6 11,12 Q11,18 14,25 Q17,18 17,12 Q17,6 14,3 Z"/>
+            <circle cx="14" cy="12" r="3" fill="${markerColor}"/>
+            ${isHighlighted ? '<circle cx="14" cy="12" r="7" fill="none" stroke="#FFD600" stroke-width="2"/>' : ''}
+          </svg>
+        `;
 
         const marker = new window.google.maps.Marker({
           position: {
@@ -261,27 +276,31 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
           map: map,
           title: `${plot.cropType} - ${plot.plotId}`,
           icon: {
-            url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
-                      <circle cx="12" cy="18" r="3" fill="${markerColor}" stroke="${strokeColor}" stroke-width="1.5"/>
-                      <path fill="${strokeColor}" d="M12,2 Q10,4 10,8 Q10,12 12,15 Q14,12 14,8 Q14,4 12,2 Z"/>
-                      <circle cx="12" cy="8" r="2" fill="${markerColor}"/>
-                    </svg>
-                  `),
-            scaledSize: { width: 24, height: 24 },
-            anchor: { x: 12, y: 24 }
-          }
+            url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(markerSvg),
+            scaledSize: { width: 28, height: 28 },
+            anchor: { x: 14, y: 28 }
+          },
+          zIndex: isHighlighted ? 999 : 1
         });
 
+        marker.addListener('mouseover', () => {
+          setHighlightedPlotId(plot.plotId);
+        });
+        marker.addListener('mouseout', () => {
+          setHighlightedPlotId(null);
+        });
         marker.addListener('click', () => {
           setSelectedPlot(plot);
           setClickedCoordinate({
             lat: parseFloat(plot.latitude),
             lng: parseFloat(plot.longitude),
             plotId: plot.plotId,
-            cropType: plot.cropType
+            cropType: plot.cropType,
+            fileName: plot.fileName,
+            serial: index + 1
           });
           setShowCoordinatePopup(true);
+          setHighlightedPlotId(plot.plotId);
         });
 
         markersRef.current.push(marker);
@@ -599,6 +618,7 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
             }}>
               <thead>
                 <tr style={{ background: '#4CAF50', color: 'white' }}>
+                  <th style={{ padding: '15px', textAlign: 'left', fontWeight: '600' }}>#</th>
                   <th style={{ padding: '15px', textAlign: 'left', fontWeight: '600' }}>File Name</th>
                   <th style={{ padding: '15px', textAlign: 'left', fontWeight: '600' }}>Crop Type</th>
                   <th style={{ padding: '15px', textAlign: 'left', fontWeight: '600' }}>Latitude</th>
@@ -606,44 +626,77 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
                 </tr>
               </thead>
               <tbody>
-                {plots.map((plot, index) => (
-                  <tr key={index} style={{
-                    borderBottom: index < plots.length - 1 ? '1px solid #eee' : 'none',
-                    transition: 'background-color 0.2s ease'
-                  }}
-                    onMouseEnter={(e) => e.target.parentElement.style.backgroundColor = '#f8f9fa'}
-                    onMouseLeave={(e) => e.target.parentElement.style.backgroundColor = 'transparent'}
-                  >
-                    <td style={{
-                      padding: '12px 15px',
-                      fontFamily: 'monospace',
-                      fontSize: '0.9rem',
-                      color: '#666'
-                    }}>
-                      {plot.fileName}
-                    </td>
-                    <td style={{
-                      padding: '12px 15px',
-                      fontWeight: '500'
-                    }}>
-                      {plot.cropType}
-                    </td>
-                    <td style={{
-                      padding: '12px 15px',
-                      fontFamily: 'monospace',
-                      fontSize: '0.9rem'
-                    }}>
-                      {parseFloat(plot.latitude).toFixed(6)}
-                    </td>
-                    <td style={{
-                      padding: '12px 15px',
-                      fontFamily: 'monospace',
-                      fontSize: '0.9rem'
-                    }}>
-                      {parseFloat(plot.longitude).toFixed(6)}
-                    </td>
-                  </tr>
-                ))}
+                {[...plots]
+                  .sort((a, b) => {
+                    // Sort by latitude, then longitude
+                    const latA = parseFloat(a.latitude);
+                    const latB = parseFloat(b.latitude);
+                    if (latA !== latB) return latA - latB;
+                    return parseFloat(a.longitude) - parseFloat(b.longitude);
+                  })
+                  .map((plot, index) => (
+                    <tr key={index}
+                      style={{
+                        borderBottom: index < plots.length - 1 ? '1px solid #eee' : 'none',
+                        transition: 'background-color 0.2s ease',
+                        backgroundColor: highlightedPlotId === plot.plotId ? '#FFFDE7' : 'transparent',
+                        cursor: 'pointer'
+                      }}
+                      onMouseEnter={() => setHighlightedPlotId(plot.plotId)}
+                      onMouseLeave={() => setHighlightedPlotId(null)}
+                      onClick={() => {
+                        setSelectedPlot(plot);
+                        setClickedCoordinate({
+                          lat: parseFloat(plot.latitude),
+                          lng: parseFloat(plot.longitude),
+                          plotId: plot.plotId,
+                          cropType: plot.cropType,
+                          fileName: plot.fileName,
+                          serial: index + 1
+                        });
+                        setShowCoordinatePopup(true);
+                        setHighlightedPlotId(plot.plotId);
+                      }}
+                    >
+                      <td style={{
+                        padding: '12px 15px',
+                        fontWeight: 'bold',
+                        fontFamily: 'monospace',
+                        fontSize: '0.9rem',
+                        color: '#333'
+                      }}>
+                        {index + 1}
+                      </td>
+                      <td style={{
+                        padding: '12px 15px',
+                        fontFamily: 'monospace',
+                        fontSize: '0.9rem',
+                        color: '#666'
+                      }}>
+                        {plot.fileName}
+                      </td>
+                      <td style={{
+                        padding: '12px 15px',
+                        fontWeight: '500'
+                      }}>
+                        {plot.cropType}
+                      </td>
+                      <td style={{
+                        padding: '12px 15px',
+                        fontFamily: 'monospace',
+                        fontSize: '0.9rem'
+                      }}>
+                        {parseFloat(plot.latitude).toFixed(6)}
+                      </td>
+                      <td style={{
+                        padding: '12px 15px',
+                        fontFamily: 'monospace',
+                        fontSize: '0.9rem'
+                      }}>
+                        {parseFloat(plot.longitude).toFixed(6)}
+                      </td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>
