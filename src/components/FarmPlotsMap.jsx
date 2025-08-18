@@ -66,7 +66,7 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
   const loadFarmPlots = async () => {
     try {
       /// Call the /dashboard endpoint to get latitude and longitude data
-      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}dashboard`);
+      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/dashboard`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
