@@ -22,7 +22,7 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
 
   // Initialize map when plots are loaded and Google Maps is available
   useEffect(() => {
-    if (!loading && mapsLoaded && window.google) {
+    if (!loading && mapsLoaded && window.google && plots !== null) {
       initializeMap();
     }
   }, [plots, loading, mapsLoaded]);
@@ -65,37 +65,41 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
 
   const loadFarmPlots = async () => {
     try {
-      // Simulate API call to /farm-map-data endpoint
-      const response = await simulateBackendCall();
+      /// Call the /dashboard endpoint to get latitude and longitude data
+      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}dashboard`);
       
-      setTimeout(() => {
-        setPlots(response);
-        setLoading(false);
-      }, 1000);
-
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('Dashboard data:', data);
+    
+      const allPlants = [];
+      let plotIndex = 1;
+      
+      data.forEach((document) => {
+        if (document.plants && Array.isArray(document.plants)) {
+          document.plants.forEach((plant) => {
+            if (plant.latitude && plant.longitude) {
+              allPlants.push({
+                plotId: `${plant.cropType}-${plotIndex}`,
+                cropType: plant.cropType,
+                latitude: plant.latitude,
+                longitude: plant.longitude
+              });
+              plotIndex++;
+            }
+          });
+        }
+      });
+      
+      setPlots(allPlants);
+      setLoading(false);
     } catch (error) {
       console.error('Error loading farm plots:', error);
       setLoading(false);
     }
-  };
-
-  // Simulate backend response - now without coordinates
-  const simulateBackendCall = async () => {
-    // Simulate POST request to /farm-map-data with farmerId
-    const requestPayload = {
-      "farmerId": farmerId
-    };
-
-    console.log('POST /farm-map-data:', requestPayload);
-
-    // Simulate backend response - removed coordinates to not plot on map
-    return [
-      {
-        "plotId": "lkl3k24j3l2j4324",
-        "cropType": "Cotton"
-        // Removed latitude and longitude to prevent plotting
-      }
-    ];
   };
 
   // Update image markers on the map
@@ -152,11 +156,9 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
       }
     });
 
-    // If we have image coordinates, adjust map bounds to include them immediately
     const validImageCoordinates = uploadedImageCoordinates.filter(img => img.location);
     
-    if (validImageCoordinates.length > 0 && mapInstanceRef.current) {
-      // Wait a moment for markers to be added to the map
+    if (validImageCoordinates.length > 0 && mapInstanceRef.current && plots.length === 0) {
       setTimeout(() => {
         const bounds = new window.google.maps.LatLngBounds();
         
@@ -197,7 +199,6 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
     }
   };
 
-  // Google Maps initialization - now with default location since no farm plot coordinates
   const initializeMap = () => {
     if (!window.google || !mapRef.current) {
       console.error('Google Maps not loaded or map container not available');
@@ -208,18 +209,81 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
     markersRef.current.forEach(marker => marker.setMap(null));
     markersRef.current = [];
 
-    // Use default center location (Hyderabad, India) since no farm coordinates
-    const defaultCenter = { lat: 17.7231, lng: 78.4480 };
+    let mapCenter = { lat: 17.7231, lng: 78.4480 };
+    let mapZoom = 5;
+
+    const validPlots = plots.filter(plot => plot.latitude && plot.longitude);
+    if (validPlots.length > 0) {
+      // Select a random plant from any available plots
+      const randomPlot = validPlots[Math.floor(Math.random() * validPlots.length)];
+      mapCenter = {
+        lat: parseFloat(randomPlot.latitude),
+        lng: parseFloat(randomPlot.longitude)
+      };
+      mapZoom = 15; 
+      console.log('Centering map on:', randomPlot.cropType, 'at', mapCenter);
+    }
     
     const map = new window.google.maps.Map(mapRef.current, {
-      zoom: 8,
-      center: defaultCenter,
+      zoom: mapZoom,
+      center: mapCenter,
       mapTypeId: 'hybrid'
     });
 
     mapInstanceRef.current = map;
 
-    // Add image markers if available - this will auto-adjust the map view
+    plots.forEach((plot, index) => {
+      if (plot.latitude && plot.longitude) {
+        
+        let markerColor = '#4CAF50'; // Default green
+        let strokeColor = '#2E7D32';
+        let iconText = 'CROP';
+        
+        if (plot.cropType.toLowerCase().includes('mango')) {
+          markerColor = '#FF9800';
+          strokeColor = '#F57C00';
+          iconText = 'MANGO';
+        } else if (plot.cropType.toLowerCase().includes('cotton')) {
+          markerColor = '#E3F2FD';
+          strokeColor = '#1976D2';
+          iconText = 'COTTON';
+        }
+
+        const marker = new window.google.maps.Marker({
+          position: { 
+            lat: parseFloat(plot.latitude), 
+            lng: parseFloat(plot.longitude) 
+          },
+          map: map,
+          title: `${plot.cropType} - ${plot.plotId}`,
+          icon: {
+            url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+              <svg xmlns="http://www.w3.org/2000/svg" width="35" height="35" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10" fill="${markerColor}" stroke="${strokeColor}" stroke-width="2"/>
+                <path fill="white" d="M8,12 L12,8 L16,12 M12,8 L12,18" stroke="white" stroke-width="2"/>
+                <text x="12" y="22" text-anchor="middle" fill="${strokeColor}" font-size="6" font-weight="bold">${iconText}</text>
+              </svg>
+            `),
+            scaledSize: { width: 35, height: 35 },
+            anchor: { x: 17.5, y: 35 }
+          }
+        });
+
+        marker.addListener('click', () => {
+          setSelectedPlot(plot);
+          setClickedCoordinate({
+            lat: parseFloat(plot.latitude),
+            lng: parseFloat(plot.longitude),
+            plotId: plot.plotId,
+            cropType: plot.cropType
+          });
+          setShowCoordinatePopup(true);
+        });
+
+        markersRef.current.push(marker);
+      }
+    });
+
     updateImageMarkers();
   };
 
@@ -247,10 +311,10 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
           margin: '0 auto 20px'
         }}></div>
         <p style={{ fontSize: '1.2rem', fontWeight: '600', color: '#333', marginBottom: '10px' }}>
-          Loading farm data...
+          Loading plant locations...
         </p>
         <p style={{ color: '#666', fontSize: '0.9rem' }}>
-          Farmer ID: {farmerId}
+          Fetching data from dashboard endpoint
         </p>
       </div>
     );
@@ -491,7 +555,7 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
                   Loading Google Maps...
                 </p>
                 <p style={{ fontSize: '0.9rem', color: '#4CAF50', margin: '0 0 5px 0' }}>
-                  👨‍🌾 Farmer ID: {farmerId}
+                  Loading plant locations from dashboard...
                 </p>
                 <p style={{ fontSize: '0.8rem', color: '#FF6B35', margin: 0 }}>
                   📷 Orange markers: Uploaded images
