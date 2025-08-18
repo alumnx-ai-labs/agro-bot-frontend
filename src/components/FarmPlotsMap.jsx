@@ -86,7 +86,8 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
                 plotId: `${plant.cropType}-${plotIndex}`,
                 cropType: plant.cropType,
                 latitude: plant.latitude,
-                longitude: plant.longitude
+                longitude: plant.longitude,
+                fileName: plant.fileName || 'N/A'
               });
               plotIndex++;
             }
@@ -587,23 +588,65 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
             🌾 Farm Plot Information
           </h3>
 
-          {plots.map((plot, index) => (
-            <div key={index} style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-              gap: '15px',
-              marginBottom: index < plots.length - 1 ? '20px' : '0',
-              paddingBottom: index < plots.length - 1 ? '20px' : '0',
-              borderBottom: index < plots.length - 1 ? '1px solid #eee' : 'none'
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{
+              width: '100%',
+              borderCollapse: 'collapse',
+              background: 'white',
+              borderRadius: '8px',
+              overflow: 'hidden',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
             }}>
-              <div style={{ padding: '15px', background: '#f8f9fa', borderRadius: '8px' }}>
-                <strong>Plot ID:</strong> {plot.plotId}
-              </div>
-              <div style={{ padding: '15px', background: '#f8f9fa', borderRadius: '8px' }}>
-                <strong>Crop Type:</strong> {plot.cropType}
-              </div>
-            </div>
-          ))}
+              <thead>
+                <tr style={{ background: '#4CAF50', color: 'white' }}>
+                  <th style={{ padding: '15px', textAlign: 'left', fontWeight: '600' }}>File Name</th>
+                  <th style={{ padding: '15px', textAlign: 'left', fontWeight: '600' }}>Crop Type</th>
+                  <th style={{ padding: '15px', textAlign: 'left', fontWeight: '600' }}>Latitude</th>
+                  <th style={{ padding: '15px', textAlign: 'left', fontWeight: '600' }}>Longitude</th>
+                </tr>
+              </thead>
+              <tbody>
+                {plots.map((plot, index) => (
+                  <tr key={index} style={{
+                    borderBottom: index < plots.length - 1 ? '1px solid #eee' : 'none',
+                    transition: 'background-color 0.2s ease'
+                  }}
+                    onMouseEnter={(e) => e.target.parentElement.style.backgroundColor = '#f8f9fa'}
+                    onMouseLeave={(e) => e.target.parentElement.style.backgroundColor = 'transparent'}
+                  >
+                    <td style={{
+                      padding: '12px 15px',
+                      fontFamily: 'monospace',
+                      fontSize: '0.9rem',
+                      color: '#666'
+                    }}>
+                      {plot.fileName}
+                    </td>
+                    <td style={{
+                      padding: '12px 15px',
+                      fontWeight: '500'
+                    }}>
+                      {plot.cropType}
+                    </td>
+                    <td style={{
+                      padding: '12px 15px',
+                      fontFamily: 'monospace',
+                      fontSize: '0.9rem'
+                    }}>
+                      {parseFloat(plot.latitude).toFixed(6)}
+                    </td>
+                    <td style={{
+                      padding: '12px 15px',
+                      fontFamily: 'monospace',
+                      fontSize: '0.9rem'
+                    }}>
+                      {parseFloat(plot.longitude).toFixed(6)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -627,7 +670,7 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
 
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
             gap: '15px'
           }}>
             <div style={{ padding: '15px', background: '#f8f9fa', borderRadius: '8px' }}>
@@ -636,6 +679,11 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
             <div style={{ padding: '15px', background: '#f8f9fa', borderRadius: '8px' }}>
               <strong>Type:</strong> {selectedPlot.cropType}
             </div>
+            {!selectedPlot.isImage && (
+              <div style={{ padding: '15px', background: '#f8f9fa', borderRadius: '8px' }}>
+                <strong>Source File:</strong> {selectedPlot.fileName}
+              </div>
+            )}
             {selectedPlot.isImage && (
               <div style={{ padding: '15px', background: '#f8f9fa', borderRadius: '8px' }}>
                 <strong>Coordinates:</strong> {parseFloat(selectedPlot.location?.latitude).toFixed(6)}, {parseFloat(selectedPlot.location?.longitude).toFixed(6)}
