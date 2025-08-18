@@ -5,6 +5,7 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
   const [modelType, setModelType] = useState('teachable_machine'); // 'teachable_machine' or 'mobilenet'
   const [isProcessing, setIsProcessing] = useState(false);
   const [isModelLoading, setIsModelLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const fileInputRef = useRef(null);
 
   // Use persistent state from parent
@@ -31,7 +32,7 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
           predictions: result.predictions,
           timestamp: result.timestamp
         }));
-      
+
       onCoordinatesUpdate(coordinatesData);
     }
   }, [imageResults, onCoordinatesUpdate]);
@@ -79,7 +80,7 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
       // Try direct URLs first (these sometimes work better for CORS)
       const directModelURL = "https://storage.googleapis.com/tm-model/6UdJBojDI/model.json";
       const directMetadataURL = "https://storage.googleapis.com/tm-model/6UdJBojDI/metadata.json";
-      
+
       // Fallback to original URLs
       const modelURL = MODEL_URL + "model.json";
       const metadataURL = MODEL_URL + "metadata.json";
@@ -92,7 +93,7 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
 
       if (window.tmImage) {
         console.log('Teachable Machine library found, loading model...');
-        
+
         let loadedModel;
         try {
           // Try direct URLs first
@@ -103,7 +104,7 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
           // Fallback to original URLs
           loadedModel = await window.tmImage.load(modelURL, metadataURL);
         }
-        
+
         console.log('Model loaded successfully:', loadedModel);
         onStateChange(prev => ({ ...prev, model: loadedModel }));
         return loadedModel;
@@ -113,12 +114,12 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
     } catch (error) {
       console.error('Error loading model:', error);
       console.log('MODEL_URL from env:', process.env.REACT_APP_TEACHABLE_MACHINE_URL);
-      
+
       // More detailed error message
-      const errorMessage = error.message.includes('CORS') || error.message.includes('fetch') 
+      const errorMessage = error.message.includes('CORS') || error.message.includes('fetch')
         ? 'CORS error: The model cannot be loaded from localhost. Please deploy the app or use a different model URL.'
         : error.message;
-      
+
       alert(`Failed to load the model. Error: ${errorMessage}\n\nSuggestions:\n1. Deploy the app to a domain\n2. Use a local model file\n3. Set up a proxy server`);
       return null;
     } finally {
@@ -180,7 +181,7 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
     }
 
     // Find the highest probability prediction
-    const topPrediction = predictions.reduce((prev, current) => 
+    const topPrediction = predictions.reduce((prev, current) =>
       (prev.probability > current.probability) ? prev : current
     );
 
@@ -198,13 +199,13 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
   };
 
   // Save farm data to backend
-  const saveFarmData = async (location, predictions) => {
+  const saveFarmData = async (location, predictions, imageURL) => {
     if (!location) {
       console.log('No location data to save');
-      return { 
-        saved: false, 
+      return {
+        saved: false,
         isDuplicate: false,
-        message: 'No GPS coordinates available' 
+        message: 'No GPS coordinates available'
       };
     }
 
@@ -219,7 +220,8 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
         latitude: location.latitude.toString(),
         longitude: location.longitude.toString(),
         farmId: FARM_ID,
-        cropType: cropType
+        cropType: cropType,
+        imageURL: imageURL
       };
 
       console.log('Request payload:', requestPayload);
@@ -235,7 +237,7 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
       if (response.ok) {
         const result = await response.json();
         console.log('Farm data save response:', result);
-        
+
         // Ensure the response has the expected structure
         return {
           latitude: result.latitude || location.latitude.toString(),
@@ -249,19 +251,104 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
       } else {
         const errorText = await response.text();
         console.error('Failed to save farm data:', response.status, errorText);
-        return { 
-          saved: false, 
+        return {
+          saved: false,
           isDuplicate: false,
-          message: `Failed to save: ${response.status} ${errorText}` 
+          message: `Failed to save: ${response.status} ${errorText}`
         };
       }
     } catch (error) {
       console.error('Error saving farm data:', error);
-      return { 
-        saved: false, 
+      return {
+        saved: false,
         isDuplicate: false,
-        message: `Error saving farm data: ${error.message}` 
+        message: `Error saving farm data: ${error.message}`
       };
+    }
+  };
+
+  // Upload image and get URL
+  const uploadImage = async (file) => {
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+
+      const response = await fetch(`${BACKEND_URL}/save-image`, {
+        method: 'POST',
+        body: formData
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        return result.imageURL; // Return the image URL
+      } else {
+        throw new Error(`Upload failed: ${response.status}`);
+      }
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      return null;
+    }
+  };
+
+  // Handle saving all images with location data
+  const handleSaveImages = async () => {
+    const imagesToSave = imageResults.filter(result => result.location && !result.isSaved);
+
+    if (imagesToSave.length === 0) {
+      alert('No unsaved images with GPS data to save.');
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      const updatedResults = [...imageResults];
+
+      for (let i = 0; i < imagesToSave.length; i++) {
+        const result = imagesToSave[i];
+        const resultIndex = imageResults.findIndex(r => r.id === result.id);
+
+        console.log(`Uploading image ${i + 1}/${imagesToSave.length}: ${result.file.name}`);
+
+        // Upload image and get URL
+        const imageURL = await uploadImage(result.file);
+
+        if (imageURL) {
+          // Save farm data with image URL
+          const farmDataResponse = await saveFarmData(result.location, result.predictions, imageURL);
+
+          // Update the result
+          updatedResults[resultIndex] = {
+            ...result,
+            imageURL: imageURL,
+            farmDataSaved: farmDataResponse,
+            isSaved: farmDataResponse.saved
+          };
+        } else {
+          // Mark as failed if image upload failed
+          updatedResults[resultIndex] = {
+            ...result,
+            farmDataSaved: {
+              saved: false,
+              isDuplicate: false,
+              message: 'Image upload failed'
+            },
+            isSaved: false
+          };
+        }
+      }
+
+      // Update state with all results
+      onStateChange(prev => ({ ...prev, imageResults: updatedResults }));
+
+      const successCount = updatedResults.filter(r => r.isSaved).length;
+      alert(`Successfully saved ${successCount} images to the farm database!`);
+
+    } catch (error) {
+      console.error('Error saving images:', error);
+      alert('Error saving images. Please try again.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -298,9 +385,6 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
               const predictions = await classifyImage(img, loadedModel);
 
               if (predictions) {
-                // Save farm data to backend if location is available
-                const farmDataResponse = await saveFarmData(location, predictions);
-
                 const result = {
                   id: Date.now() + Math.random(),
                   file: file,
@@ -308,7 +392,7 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
                   predictions: predictions,
                   timestamp: new Date().toLocaleTimeString(),
                   location: location,
-                  farmDataSaved: farmDataResponse // Store the farm data save response
+                  isSaved: false // Track if this image has been saved
                 };
 
                 newResults.push(result);
@@ -375,13 +459,13 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
       fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
     }}>
       <div style={{ marginBottom: '30px' }}>
-        <h2 style={{ 
-          color: '#2c5530', 
-          marginBottom: '10px', 
-          fontSize: '1.8rem', 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: '10px' 
+        <h2 style={{
+          color: '#2c5530',
+          marginBottom: '10px',
+          fontSize: '1.8rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px'
         }}>
           Crop Classifier
         </h2>
@@ -460,10 +544,10 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
               {imageResults.filter(result => result.location).length} images with GPS coordinates processed!
             </span>
           </div>
-          <p style={{ 
-            margin: '8px 0 0 30px', 
-            color: '#4a7c59', 
-            fontSize: '0.9rem' 
+          <p style={{
+            margin: '8px 0 0 30px',
+            color: '#4a7c59',
+            fontSize: '0.9rem'
           }}>
             Images have been classified and location data sent to the farm database.
           </p>
@@ -500,34 +584,43 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
               fontSize: '0.8rem',
               fontWeight: '600'
             }}>
-              {imageResults.filter(result => result.farmDataSaved?.saved).length} saved to farm DB
-            </span>
-            <span style={{
-              background: '#fff3cd',
-              color: '#856404',
-              padding: '4px 12px',
-              borderRadius: '12px',
-              fontSize: '0.8rem',
-              fontWeight: '600'
-            }}>
-              {imageResults.filter(result => result.farmDataSaved?.isDuplicate).length} duplicates found
+              {imageResults.filter(result => result.isSaved).length} saved to farm DB
             </span>
           </h2>
-          <button 
-            onClick={clearAllResults}
-            style={{
-              background: '#dc3545',
-              color: 'white',
-              border: 'none',
-              padding: '8px 16px',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontSize: '0.9rem',
-              fontWeight: '600'
-            }}
-          >
-            Clear All
-          </button>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button
+              onClick={handleSaveImages}
+              disabled={isSaving || imageResults.filter(result => result.location && !result.isSaved).length === 0}
+              style={{
+                background: isSaving ? '#6c757d' : '#28a745',
+                color: 'white',
+                border: 'none',
+                padding: '8px 16px',
+                borderRadius: '6px',
+                cursor: isSaving ? 'not-allowed' : 'pointer',
+                fontSize: '0.9rem',
+                fontWeight: '600',
+                opacity: imageResults.filter(result => result.location && !result.isSaved).length === 0 ? 0.6 : 1
+              }}
+            >
+              {isSaving ? 'Saving...' : `Save Images (${imageResults.filter(result => result.location && !result.isSaved).length})`}
+            </button>
+            <button
+              onClick={clearAllResults}
+              style={{
+                background: '#dc3545',
+                color: 'white',
+                border: 'none',
+                padding: '8px 16px',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '0.9rem',
+                fontWeight: '600'
+              }}
+            >
+              Clear All
+            </button>
+          </div>
         </div>
       )}
 
@@ -600,13 +693,13 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
                   </div>
                 )}
                 {/* Farm data saved indicator */}
-                {result.farmDataSaved && (
+                {result.isSaved && (
                   <div style={{
                     position: 'absolute',
                     top: result.location ? '45px' : '10px',
                     left: '10px',
-                    background: result.farmDataSaved.saved ? '#28a745' : result.farmDataSaved.isDuplicate ? '#ffc107' : '#dc3545',
-                    color: result.farmDataSaved.saved ? 'white' : result.farmDataSaved.isDuplicate ? '#212529' : 'white',
+                    background: result.farmDataSaved?.saved ? '#28a745' : result.farmDataSaved?.isDuplicate ? '#ffc107' : '#dc3545',
+                    color: result.farmDataSaved?.saved ? 'white' : result.farmDataSaved?.isDuplicate ? '#212529' : 'white',
                     padding: '4px 8px',
                     borderRadius: '12px',
                     fontSize: '0.7rem',
@@ -615,7 +708,7 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
                     alignItems: 'center',
                     gap: '4px'
                   }}>
-                    {result.farmDataSaved.saved ? 'SAVED' : result.farmDataSaved.isDuplicate ? 'DUPLICATE' : 'FAILED'}
+                    {result.farmDataSaved?.saved ? 'SAVED' : result.farmDataSaved?.isDuplicate ? 'DUPLICATE' : 'FAILED'}
                   </div>
                 )}
               </div>
@@ -664,7 +757,7 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
                 )}
 
                 {/* Farm data save status */}
-                {result.farmDataSaved && (
+                {result.isSaved && result.farmDataSaved && (
                   <div style={{
                     display: 'flex',
                     alignItems: 'flex-start',
