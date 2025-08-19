@@ -6,6 +6,8 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
   const [isProcessing, setIsProcessing] = useState(false);
   const [isModelLoading, setIsModelLoading] = useState(false);
   const fileInputRef = useRef(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState({});
 
   // Use persistent state from parent
   const { imageResults, model } = persistentState;
@@ -20,10 +22,11 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
   const FARM_ID = "689f38a62fc7b82767250cda";
 
   // Update coordinates when imageResults change
+  // FIXED CODE:
   useEffect(() => {
     if (onCoordinatesUpdate && imageResults.length > 0) {
       const coordinatesData = imageResults
-        .filter(result => result.location) // Only include results with location data
+        .filter(result => result.location)
         .map(result => ({
           id: result.id,
           fileName: result.file.name,
@@ -34,7 +37,7 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
 
       onCoordinatesUpdate(coordinatesData);
     }
-  }, [imageResults, onCoordinatesUpdate]);
+  }, [imageResults]); // REMOVE onCoordinatesUpdate from dependencies
 
   // Helper function to convert DMS (Degrees, Minutes, Seconds) to Decimal Degrees
   const convertDMSToDD = (dms, ref) => {
@@ -43,6 +46,69 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
       dd = dd * -1;
     }
     return dd;
+  };
+
+  // ADD this new function after your existing helper functions
+  const uploadDirectToCloudinary = async (imageResult) => {
+    try {
+      // Compress the image first
+      const compressedFile = await compressImage(imageResult.file);
+
+      // Check size after compression
+      if (compressedFile.size > 10 * 1024 * 1024) { // 10MB
+        throw new Error(`Image still too large after compression: ${(compressedFile.size / 1024 / 1024).toFixed(1)}MB`);
+      }
+
+      // Get signature from backend
+      const signatureResponse = await fetch(`${BACKEND_URL}/cloudinary-signature`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folder: 'mango-trees' })
+      });
+
+      if (!signatureResponse.ok) {
+        const errorText = await signatureResponse.text();
+        throw new Error(`Failed to get upload signature: ${errorText}`);
+      }
+
+      const { signature, timestamp, cloudName, apiKey } = await signatureResponse.json();
+
+      // Prepare form data with compressed file
+      const formData = new FormData();
+      formData.append('file', compressedFile, imageResult.file.name); // Keep original filename
+      formData.append('api_key', apiKey);
+      formData.append('timestamp', timestamp);
+      formData.append('signature', signature);
+      formData.append('folder', 'mango-trees');
+
+      // Upload to Cloudinary
+      const cloudinaryResponse = await fetch(
+        `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+        { method: 'POST', body: formData }
+      );
+
+      if (!cloudinaryResponse.ok) {
+        const errorData = await cloudinaryResponse.json();
+        console.error('Cloudinary Error:', errorData);
+        throw new Error(errorData.error?.message || 'Cloudinary upload failed');
+      }
+
+      const cloudinaryResult = await cloudinaryResponse.json();
+
+      return {
+        success: true,
+        cloudinaryUrl: cloudinaryResult.secure_url,
+        publicId: cloudinaryResult.public_id,
+        fullResult: cloudinaryResult
+      };
+
+    } catch (error) {
+      console.error('Upload error:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
   };
 
   const extractGPSFromExif = async (file) => {
@@ -68,6 +134,95 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
         resolve(null); // EXIF library not available
       }
     });
+  };
+
+  // ADD this function to compress images before upload
+  const compressImage = (file, maxSizeMB = 8) => {
+    return new Promise((resolve) => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+
+      img.onload = () => {
+        // Calculate new dimensions (keep aspect ratio)
+        const maxWidth = 1920; // Reasonable max width
+        const maxHeight = 1080; // Reasonable max height
+
+        let { width, height } = img;
+
+        if (width > height) {
+          if (width > maxWidth) {
+            height = height * (maxWidth / width);
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = width * (maxHeight / height);
+            height = maxHeight;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        // Draw and compress
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Convert to blob with compression
+        canvas.toBlob((blob) => {
+          resolve(blob);
+        }, 'image/jpeg', 0.7); // 70% quality
+      };
+
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
+  const saveImagesToCloudinary = async () => {
+    setIsUploading(true);
+    const imagesToSave = imageResults.filter(result => result.location && !result.cloudinaryUrl);
+
+    for (const result of imagesToSave) {
+      try {
+        setUploadStatus(prev => ({ ...prev, [result.id]: 'uploading' }));
+
+        // Use the new direct upload function
+        const uploadResult = await uploadDirectToCloudinary(result);
+
+        if (!uploadResult.success) {
+          throw new Error(uploadResult.error);
+        }
+
+        // Save to farm database with Cloudinary URL
+        const farmDataResponse = await saveFarmData(
+          result.location,
+          result.predictions,
+          result.file,
+          uploadResult.cloudinaryUrl
+        );
+
+        // Update result with URLs
+        const updatedResults = imageResults.map(r =>
+          r.id === result.id
+            ? {
+              ...r,
+              cloudinaryUrl: uploadResult.cloudinaryUrl,
+              publicId: uploadResult.publicId,
+              farmDataSaved: farmDataResponse
+            }
+            : r
+        );
+
+        onStateChange(prev => ({ ...prev, imageResults: updatedResults }));
+        setUploadStatus(prev => ({ ...prev, [result.id]: 'success' }));
+
+      } catch (error) {
+        console.error('Error uploading image:', error);
+        setUploadStatus(prev => ({ ...prev, [result.id]: 'error' }));
+      }
+    }
+
+    setIsUploading(false);
   };
 
   // Load the Teachable Machine model
@@ -198,7 +353,7 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
   };
 
   // Save farm data to backend
-  const saveFarmData = async (location, predictions, file) => {
+  const saveFarmData = async (location, predictions, file, cloudinaryUrl = null) => {
     if (!location) {
       console.log('No location data to save');
       return {
@@ -220,7 +375,8 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
         longitude: location.longitude.toString(),
         farmId: FARM_ID,
         cropType: cropType,
-        fileName: file.name
+        fileName: file.name,
+        cloudinaryUrl: cloudinaryUrl // ADD this line
       };
 
       console.log('Request payload:', requestPayload);
@@ -300,7 +456,7 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
 
               if (predictions) {
                 // Save farm data to backend if location is available
-                const farmDataResponse = await saveFarmData(location, predictions, file);
+                const farmDataResponse = null;
 
                 const result = {
                   id: Date.now() + Math.random(),
@@ -309,7 +465,8 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
                   predictions: predictions,
                   timestamp: new Date().toLocaleTimeString(),
                   location: location,
-                  farmDataSaved: farmDataResponse // Store the farm data save response
+                  farmDataSaved: null, // Will be set after manual save
+                  cloudinaryUrl: null  // Will be set after upload
                 };
 
                 newResults.push(result);
@@ -529,6 +686,26 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
           >
             Clear All
           </button>
+          {imageResults.filter(result => result.location && !result.cloudinaryUrl).length > 0 && (
+            <button
+              onClick={saveImagesToCloudinary}
+              disabled={isUploading}
+              style={{
+                background: '#28a745',
+                color: 'white',
+                border: 'none',
+                padding: '8px 16px',
+                borderRadius: '6px',
+                cursor: isUploading ? 'not-allowed' : 'pointer',
+                fontSize: '0.9rem',
+                fontWeight: '600',
+                marginLeft: '10px',
+                opacity: isUploading ? 0.6 : 1
+              }}
+            >
+              {isUploading ? 'Uploading...' : `Save ${imageResults.filter(result => result.location && !result.cloudinaryUrl).length} Images`}
+            </button>
+          )}
         </div>
       )}
 
@@ -649,7 +826,7 @@ const TeachableMachineUpload = ({ persistentState, onStateChange, onCoordinatesU
                   }}>
                     <MapPin size={14} style={{ color: '#28a745' }} />
                     <span style={{ fontSize: '0.8rem', color: '#666' }}>
-                      {result.location.latitude.toFixed(6)}, {result.location.longitude.toFixed(6)}
+                      {result.location.latitude}, {result.location.longitude}
                     </span>
                   </div>
                 ) : (
