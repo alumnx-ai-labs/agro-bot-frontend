@@ -35,11 +35,11 @@ function App() {
   const [audioChunks, setAudioChunks] = useState([]);
 
   // SME options
-const smeOptions = [
-  { value: '', label: 'Select an SME (Required)' },
-  { value: 'op-awasthi-mosambi', label: 'OP Awasthi - Mosambi' },
-  { value: 'ms-swaminathan-wheat', label: 'MS Swaminathan - Wheat' }
-];
+  const smeOptions = [
+    { value: '', label: 'Select an SME (Required)' },
+    { value: 'op-awasthi-mosambi', label: 'OP Awasthi - Mosambi' },
+    { value: 'ms-swaminathan-wheat', label: 'MS Swaminathan - Wheat' }
+  ];
 
   useEffect(() => {
     checkHealth();
@@ -110,7 +110,7 @@ const smeOptions = [
     }
   };
   const updateImageCoordinates = (coordinates) => {
-  setUploadedImageCoordinates(coordinates);
+    setUploadedImageCoordinates(coordinates);
   };
   const resetInterface = () => {
     setIsLoading(false);
@@ -144,41 +144,41 @@ const smeOptions = [
     } else if (currentMode === 'consultant') {
       startConsultantThoughts();
     } else if (currentMode === 'predictive') {
-    startPredictiveAdvisoryThoughts();
-  }
+      startPredictiveAdvisoryThoughts();
+    }
   };
 
-const startPredictiveAdvisoryThoughts = () => {
-  const thoughts = [
-    "🌡️ Analyzing current weather conditions...",
-    "🔍 Comparing with crop impact database...",
-    "🤖 Generating AI-powered predictions...",
-    "✅ Predictive advisory complete! Preparing recommendations..."
-  ];
+  const startPredictiveAdvisoryThoughts = () => {
+    const thoughts = [
+      "🌡️ Analyzing current weather conditions...",
+      "🔍 Comparing with crop impact database...",
+      "🤖 Generating AI-powered predictions...",
+      "✅ Predictive advisory complete! Preparing recommendations..."
+    ];
 
-  setManagerThoughts([]);
-  thoughts.forEach((thought, index) => {
-    setTimeout(() => {
-      setManagerThoughts(prev => [...prev, thought]);
-    }, index * 2000);
-  });
-};
+    setManagerThoughts([]);
+    thoughts.forEach((thought, index) => {
+      setTimeout(() => {
+        setManagerThoughts(prev => [...prev, thought]);
+      }, index * 2000);
+    });
+  };
 
-const startDiseaseAnalysisThoughts = () => {
-  const thoughts = [
-    "🤔 Analyzing your crop image...",
-    "🎯 Identifying potential issues...",
-    "🔬 Calling disease detection specialist...",
-    "✅ Analysis complete! Preparing response..."
-  ];
+  const startDiseaseAnalysisThoughts = () => {
+    const thoughts = [
+      "🤔 Analyzing your crop image...",
+      "🎯 Identifying potential issues...",
+      "🔬 Calling disease detection specialist...",
+      "✅ Analysis complete! Preparing response..."
+    ];
 
-  setManagerThoughts([]);
-  thoughts.forEach((thought, index) => {
-    setTimeout(() => {
-      setManagerThoughts(prev => [...prev, thought]);
-    }, index * 2000);
-  });
-};
+    setManagerThoughts([]);
+    thoughts.forEach((thought, index) => {
+      setTimeout(() => {
+        setManagerThoughts(prev => [...prev, thought]);
+      }, index * 2000);
+    });
+  };
 
   const startConsultantThoughts = () => {
     const thoughts = [
@@ -276,8 +276,8 @@ const startDiseaseAnalysisThoughts = () => {
         showLoading('Consulting farming AI assistant...');
       }
     } else if (requestData.queryType === 'predictive_advisory') {
-  showLoading('Generating predictive advisory based on farm conditions...');
-} else {
+      showLoading('Generating predictive advisory based on farm conditions...');
+    } else {
       showLoading('Analyzing your crop image...');
     }
 
@@ -309,7 +309,7 @@ const startDiseaseAnalysisThoughts = () => {
         setResults(result);
         if (requestData.inputType === 'audio') {
           setResultsTitle('Voice Query Results');
-        }  else if (requestData.queryType === 'predictive_advisory') {
+        } else if (requestData.queryType === 'predictive_advisory') {
           setResultsTitle('Farm Predictive Advisory Results');
         } else {
           setResultsTitle(requestData.queryType === 'government_schemes' ? 'Farming AI Consultant Results' : 'Disease Analysis Results');
@@ -332,10 +332,10 @@ const startDiseaseAnalysisThoughts = () => {
     // Handle predictive advisory responses
     console.log('Full results object:', results);
 
-// Handle predictive advisory responses
-if (results.agent_response && results.agent_response.type === 'predictive_advisory') {
-  return renderPredictiveAdvisory(results.agent_response);
-}
+    // Handle predictive advisory responses
+    if (results.agent_response && results.agent_response.type === 'predictive_advisory') {
+      return renderPredictiveAdvisory(results.agent_response);
+    }
 
     // Handle government schemes response - prioritize message-only responses
     if (results.final_response && results.final_response.message) {
@@ -380,7 +380,7 @@ if (results.agent_response && results.agent_response.type === 'predictive_adviso
     );
   };
 
-   const renderPredictiveAdvisory = (advisoryData) => {
+  const renderPredictiveAdvisory = (advisoryData) => {
     if (!advisoryData) {
       return (
         <div style={{ background: 'white', borderRadius: '15px', padding: '25px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}>
@@ -460,10 +460,10 @@ if (results.agent_response && results.agent_response.type === 'predictive_adviso
         {/* Summary Message */}
         {advisoryData.message && (
           <div style={{ marginBottom: '25px' }}>
-            <div style={{ 
-              background: '#e8f5e8', 
-              padding: '20px', 
-              borderRadius: '10px', 
+            <div style={{
+              background: '#e8f5e8',
+              padding: '20px',
+              borderRadius: '10px',
               borderLeft: '4px solid #4a7c59',
               fontSize: '1.05rem',
               lineHeight: '1.6'
@@ -492,15 +492,15 @@ if (results.agent_response && results.agent_response.type === 'predictive_adviso
                 </h5>
                 <div style={{ fontSize: '0.95rem', color: '#6c5214' }}>
                   <p style={{ margin: '5px 0' }}>
-                    <strong>Probability:</strong> 
+                    <strong>Probability:</strong>
                     <span style={{
                       marginLeft: '8px',
                       padding: '2px 8px',
                       borderRadius: '12px',
                       fontSize: '0.8rem',
                       fontWeight: '600',
-                      background: prediction.probability === 'high' ? '#dc3545' : 
-                                  prediction.probability === 'medium' ? '#ffc107' : '#28a745',
+                      background: prediction.probability === 'high' ? '#dc3545' :
+                        prediction.probability === 'medium' ? '#ffc107' : '#28a745',
                       color: 'white'
                     }}>
                       {prediction.probability}
@@ -530,19 +530,19 @@ if (results.agent_response && results.agent_response.type === 'predictive_adviso
                 padding: '15px',
                 borderRadius: '8px',
                 marginBottom: '15px',
-                borderLeft: `4px solid ${recommendation.priority === 'high' ? '#dc3545' : 
-                                         recommendation.priority === 'medium' ? '#ffc107' : '#28a745'}`
+                borderLeft: `4px solid ${recommendation.priority === 'high' ? '#dc3545' :
+                  recommendation.priority === 'medium' ? '#ffc107' : '#28a745'}`
               }}>
-                <h5 style={{ 
-                  color: '#2c5530', 
-                  marginBottom: '10px', 
+                <h5 style={{
+                  color: '#2c5530',
+                  marginBottom: '10px',
                   fontSize: '1.1rem',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px'
                 }}>
-                  {recommendation.priority === 'high' ? '🔴' : 
-                   recommendation.priority === 'medium' ? '🟡' : '🟢'}
+                  {recommendation.priority === 'high' ? '🔴' :
+                    recommendation.priority === 'medium' ? '🟡' : '🟢'}
                   {recommendation.action}
                 </h5>
                 <div style={{ fontSize: '0.95rem' }}>
@@ -945,9 +945,13 @@ if (results.agent_response && results.agent_response.type === 'predictive_adviso
           justifyContent: 'center',
           flexWrap: 'wrap'
         }}>
-           {[
+          {[
             { mode: 'weather', label: '🚜 Farm Plots Map', color: '#ff6b35' },
-            { mode: 'teachable', label: '🧠 Upload Images', color: '#a855f7' }
+            { mode: 'teachable', label: '🧠 Upload Images', color: '#a855f7' },
+            { mode: 'disease', label: '🔬 Disease Detection', color: '#dc3545' },
+            { mode: 'schemes', label: '🏛️ Government Schemes', color: '#28a745' },
+            { mode: 'consultant', label: '👨‍🌾 AI Consultant', color: '#17a2b8' },
+            { mode: 'predictive', label: '🔮 Predictive Advisory', color: '#6f42c1' }
           ].map(({ mode, label, color }) => (
             <button
               key={mode}
@@ -965,7 +969,7 @@ if (results.agent_response && results.agent_response.type === 'predictive_adviso
 
         <main>
           {/* Content Sections */}
-          {/* {currentMode === 'disease' && (
+          {currentMode === 'disease' && (
             <DiseaseDetection onAnalyze={handleAnalyze} isLoading={isLoading} />
           )}
 
@@ -982,33 +986,33 @@ if (results.agent_response && results.agent_response.type === 'predictive_adviso
             />
           )}
 
-{currentMode === 'consultant' && (
-  <FarmAIConsultant
-    onAnalyze={handleAnalyze}
-    isLoading={isLoading}
-    selectedSME={selectedSME}
-    setSelectedSME={setSelectedSME}
-    smeOptions={smeOptions}
-  />
-)}
+          {currentMode === 'consultant' && (
+            <FarmAIConsultant
+              onAnalyze={handleAnalyze}
+              isLoading={isLoading}
+              selectedSME={selectedSME}
+              setSelectedSME={setSelectedSME}
+              smeOptions={smeOptions}
+            />
+          )}
 
-            {currentMode === 'predictive' && (
-  <FarmPredictiveAdvisories
-    onAnalyze={handleAnalyze}
-    isLoading={isLoading}
-  />
-)} */}
+          {currentMode === 'predictive' && (
+            <FarmPredictiveAdvisories
+              onAnalyze={handleAnalyze}
+              isLoading={isLoading}
+            />
+          )}
 
           {currentMode === 'weather' && (
-            < FarmPlotsMap uploadedImageCoordinates={uploadedImageCoordinates}/>
+            < FarmPlotsMap uploadedImageCoordinates={uploadedImageCoordinates} />
           )}
 
           {currentMode === 'teachable' && (
-              <TeachableMachineUpload 
-                persistentState={teachableMachineState}
-                onStateChange={setTeachableMachineState}
-                onCoordinatesUpdate={updateImageCoordinates}
-              />
+            <TeachableMachineUpload
+              persistentState={teachableMachineState}
+              onStateChange={setTeachableMachineState}
+              onCoordinatesUpdate={updateImageCoordinates}
+            />
           )}
 
           {/* Loading Section */}
@@ -1106,13 +1110,13 @@ if (results.agent_response && results.agent_response.type === 'predictive_adviso
 
         {/* Footer */}
         <footer style={{
-          textAlign: 'center',
-          color: 'rgba(255, 255, 255, 0.8)',
-          marginTop: '30px',
-          fontSize: '0.9rem'
-        }}>
-          <p>Phase 1 MVP - Disease Detection, Government Schemes, AI Consultants, Predictive Advisories & Weather Data</p>
-        </footer>
+  textAlign: 'center',
+  color: 'rgba(255, 255, 255, 0.8)',
+  marginTop: '30px',
+  fontSize: '0.9rem'
+}}>
+  <p>Complete Farm Management Suite - Disease Detection, Government Schemes, AI Consultants, Predictive Advisories, Farm Plots Map & Image Classification</p>
+</footer>
       </div>
 
       <style>
