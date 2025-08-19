@@ -63,17 +63,15 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
     document.head.appendChild(script);
   };
 
+  // ADD this debug code in the loadFarmPlots function:
   const loadFarmPlots = async () => {
     try {
-      /// Call the /dashboard endpoint to get latitude and longitude data
       const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/dashboard`);
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
       const data = await response.json();
-      console.log('Dashboard data:', data);
+
+      // DEBUG: Log the full data structure
+      console.log('Full dashboard data:', data);
+      console.log('First plant data:', data[0]?.plants?.[0]);
 
       const allPlants = [];
       let plotIndex = 1;
@@ -82,12 +80,14 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
         if (document.plants && Array.isArray(document.plants)) {
           document.plants.forEach((plant) => {
             if (plant.latitude && plant.longitude) {
+              console.log('Plant data:', plant); // DEBUG: Check individual plant
               allPlants.push({
                 plotId: `${plant.cropType}-${plotIndex}`,
                 cropType: plant.cropType,
                 latitude: plant.latitude,
                 longitude: plant.longitude,
-                fileName: plant.fileName || 'N/A'
+                fileName: plant.fileName || 'N/A',
+                cloudinaryUrl: plant.cloudinaryUrl // Make sure this is included
               });
               plotIndex++;
             }
@@ -95,6 +95,7 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
         }
       });
 
+      console.log('Processed plants:', allPlants); // DEBUG: Check processed data
       setPlots(allPlants);
       setLoading(false);
     } catch (error) {
@@ -385,7 +386,7 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
               fontFamily: 'monospace',
               marginTop: '5px'
             }}>
-              {clickedCoordinate.lat.toFixed(6)}, {clickedCoordinate.lng.toFixed(6)}
+              {clickedCoordinate.lat}, {clickedCoordinate.lng}
             </div>
           </div>
 
@@ -603,6 +604,7 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
                   <th style={{ padding: '15px', textAlign: 'left', fontWeight: '600' }}>Crop Type</th>
                   <th style={{ padding: '15px', textAlign: 'left', fontWeight: '600' }}>Latitude</th>
                   <th style={{ padding: '15px', textAlign: 'left', fontWeight: '600' }}>Longitude</th>
+                  <th style={{ padding: '15px', textAlign: 'left', fontWeight: '600' }}>Image View</th>
                 </tr>
               </thead>
               <tbody>
@@ -633,14 +635,47 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
                       fontFamily: 'monospace',
                       fontSize: '0.9rem'
                     }}>
-                      {parseFloat(plot.latitude).toFixed(6)}
+                      {parseFloat(plot.latitude)}
                     </td>
                     <td style={{
                       padding: '12px 15px',
                       fontFamily: 'monospace',
                       fontSize: '0.9rem'
                     }}>
-                      {parseFloat(plot.longitude).toFixed(6)}
+                      {parseFloat(plot.longitude)}
+                    </td>
+                    <td style={{
+                      padding: '12px 15px',
+                      textAlign: 'center'
+                    }}>
+                      {plot.cloudinaryUrl ? (
+                        <a
+                          href={plot.cloudinaryUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            color: '#4CAF50',
+                            textDecoration: 'none',
+                            fontWeight: '600',
+                            padding: '4px 8px',
+                            border: '1px solid #4CAF50',
+                            borderRadius: '4px',
+                            fontSize: '0.8rem'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.target.style.background = '#4CAF50';
+                            e.target.style.color = 'white';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.target.style.background = 'transparent';
+                            e.target.style.color = '#4CAF50';
+                          }}
+                        >
+                          Image
+                        </a>
+                      ) : (
+                        <span style={{ color: '#999', fontSize: '0.8rem' }}>No Image</span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -686,7 +721,7 @@ const FarmPlotsMap = ({ uploadedImageCoordinates = [] }) => {
             )}
             {selectedPlot.isImage && (
               <div style={{ padding: '15px', background: '#f8f9fa', borderRadius: '8px' }}>
-                <strong>Coordinates:</strong> {parseFloat(selectedPlot.location?.latitude).toFixed(6)}, {parseFloat(selectedPlot.location?.longitude).toFixed(6)}
+                <strong>Coordinates:</strong> {parseFloat(selectedPlot.location?.latitude)}, {parseFloat(selectedPlot.location?.longitude)}
               </div>
             )}
             {selectedPlot.fileName && (
