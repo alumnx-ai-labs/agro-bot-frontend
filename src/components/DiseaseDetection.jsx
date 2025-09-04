@@ -1,6 +1,16 @@
 // src/components/DiseaseDetection.jsx
 import React, { useState, useCallback } from 'react';
 
+// --- NEW: Hardcoded model URLs for different crops ---
+const CROP_MODELS = {
+  'Mango': {
+    url: 'https://teachablemachine.withgoogle.com/models/ufKan6pzm/'
+  },
+  'Sweet Lime': {
+    url: 'https://teachablemachine.withgoogle.com/models/6UdJBojDI/'
+  }
+};
+
 const DiseaseDetection = ({ onAnalyze, isLoading }) => {
   const [selectedImageData, setSelectedImageData] = useState(null);
   const [selectedImageUrl, setSelectedImageUrl] = useState(null);
@@ -10,37 +20,53 @@ const DiseaseDetection = ({ onAnalyze, isLoading }) => {
   const [isModelLoading, setIsModelLoading] = useState(false);
   const [predictions, setPredictions] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  
+  // --- NEW: State for the selected crop ---
+  const [selectedCrop, setSelectedCrop] = useState('');
 
-  // Your Teachable Machine model URL for disease detection - replace with your actual model URL
-  const DISEASE_MODEL_URL = process.env.REACT_APP_DISEASE_MODEL_URL || 'https://teachablemachine.withgoogle.com/models/YOUR_DISEASE_MODEL_ID/';
-
-  // Load the Teachable Machine model for disease detection
+  // --- MODIFIED: Load Teachable Machine model based on selectedCrop ---
   const loadDiseaseModel = useCallback(async () => {
     if (model) return model;
+    
+    // Ensure a crop is selected
+    if (!selectedCrop || !CROP_MODELS[selectedCrop]) {
+      alert('Please select a crop first.');
+      return null;
+    }
 
     setIsModelLoading(true);
     try {
-      // Check if tmImage is available
       if (!window.tmImage) {
         throw new Error('Teachable Machine library not loaded. Please include the script in your HTML.');
       }
 
-      const modelURL = DISEASE_MODEL_URL + "model.json";
-      const metadataURL = DISEASE_MODEL_URL + "metadata.json";
+      const modelBaseURL = CROP_MODELS[selectedCrop].url;
+      const modelURL = modelBaseURL + "model.json";
+      const metadataURL = modelBaseURL + "metadata.json";
 
-      console.log('Loading disease detection model from:', modelURL);
+      console.log(`Loading ${selectedCrop} disease detection model from:`, modelURL);
       const loadedModel = await window.tmImage.load(modelURL, metadataURL);
       setModel(loadedModel);
-      console.log('✅ Disease detection model loaded successfully');
+      console.log(`✅ ${selectedCrop} disease detection model loaded successfully`);
       return loadedModel;
     } catch (error) {
-      console.error('Error loading disease detection model:', error);
-      alert('Failed to load the disease detection model. Please check the model URL and ensure the Teachable Machine library is loaded.');
+      console.error(`Error loading ${selectedCrop} disease detection model:`, error);
+      alert(`Failed to load the ${selectedCrop} disease detection model. Please check the model URL.`);
       return null;
     } finally {
       setIsModelLoading(false);
     }
-  }, [model, DISEASE_MODEL_URL]);
+  }, [model, selectedCrop]); // Dependency updated to selectedCrop
+
+  // --- NEW: Handler for crop selection change ---
+  const handleCropChange = (event) => {
+    const newCrop = event.target.value;
+    setSelectedCrop(newCrop);
+    // Reset model and predictions when crop changes
+    setModel(null);
+    setPredictions(null);
+    console.log(`Crop selected: ${newCrop}`);
+  };
 
   const handleImageSelection = (event) => {
     const file = event.target.files[0];
@@ -53,27 +79,23 @@ const DiseaseDetection = ({ onAnalyze, isLoading }) => {
       return;
     }
 
-    // Validate file type
     if (!file.type.startsWith('image/')) {
       alert('Please select a valid image file.');
       return;
     }
 
-    // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       alert('Image size should be less than 5MB.');
       return;
     }
 
-    // Convert to base64
     const reader = new FileReader();
     reader.onload = (e) => {
-      // Remove data URL prefix to get pure base64
       const base64Data = e.target.result.split(',')[1];
       setSelectedImageData(base64Data);
       setSelectedImageUrl(URL.createObjectURL(file));
       setAnalyzeEnabled(true);
-      setPredictions(null); // Clear previous predictions
+      setPredictions(null);
       console.log('✅ Image selected and converted to base64');
     };
 
@@ -88,7 +110,6 @@ const DiseaseDetection = ({ onAnalyze, isLoading }) => {
     reader.readAsDataURL(file);
   };
 
-  // Classify the image using Teachable Machine model
   const classifyDiseaseImage = async (imageElement, loadedModel) => {
     try {
       const predictions = await loadedModel.predict(imageElement);
@@ -107,18 +128,21 @@ const DiseaseDetection = ({ onAnalyze, isLoading }) => {
       alert('Please select an image first.');
       return;
     }
+    
+    if (!selectedCrop) {
+      alert('Please select a crop before analyzing.');
+      return;
+    }
 
     setIsAnalyzing(true);
 
     try {
-      // Load the disease detection model
       const loadedModel = await loadDiseaseModel();
       if (!loadedModel) {
         setIsAnalyzing(false);
         return;
       }
 
-      // Create an image element for prediction
       const img = new Image();
       img.crossOrigin = 'anonymous';
 
@@ -140,13 +164,11 @@ const DiseaseDetection = ({ onAnalyze, isLoading }) => {
       });
 
       if (predictions) {
-        // Sort predictions by probability (highest first)
         const sortedPredictions = predictions.sort((a, b) => b.probability - a.probability);
         setPredictions(sortedPredictions);
         
         console.log('🔍 Disease detection results:', sortedPredictions);
         
-        // Call the original onAnalyze function if needed for additional processing
         if (onAnalyze) {
           const requestData = {
             inputType: 'image',
@@ -155,7 +177,7 @@ const DiseaseDetection = ({ onAnalyze, isLoading }) => {
             language: 'en',
             textDescription: textDescription.trim(),
             farmSettings: getFarmSettings(),
-            predictions: sortedPredictions // Include predictions in the request
+            predictions: sortedPredictions
           };
           
           await onAnalyze(requestData);
@@ -171,7 +193,6 @@ const DiseaseDetection = ({ onAnalyze, isLoading }) => {
     }
   };
 
-  // Helper functions matching the original code
   const getUserId = () => {
     let userId = localStorage.getItem('farmerAssistantUserId');
     if (!userId) {
@@ -187,7 +208,6 @@ const DiseaseDetection = ({ onAnalyze, isLoading }) => {
       return JSON.parse(savedSettings);
     }
     
-    // Return defaults if no settings saved
     return {
       cropType: 'Mosambi',
       acreage: 15,
@@ -201,6 +221,9 @@ const DiseaseDetection = ({ onAnalyze, isLoading }) => {
   };
 
   const isProcessing = isLoading || isModelLoading || isAnalyzing;
+  
+  // --- MODIFIED: Analyze button is also disabled if no crop is selected ---
+  const isAnalyzeButtonDisabled = !analyzeEnabled || !selectedCrop || isProcessing;
 
   return (
     <div style={{ 
@@ -215,11 +238,46 @@ const DiseaseDetection = ({ onAnalyze, isLoading }) => {
           🔬 Crop Disease Detection
         </h2>
         <p style={{ color: '#666', fontSize: '1rem', margin: 0 }}>
-          Upload a clear image of your crop to detect diseases and get treatment recommendations
+          Select your crop and upload an image to get an instant diagnosis
         </p>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
+        
+        {/* --- NEW: Crop Selection Dropdown --- */}
+        <div>
+          <label htmlFor="cropSelect" style={{ 
+            display: 'block',
+            color: '#4a7c59', 
+            fontWeight: '600', 
+            marginBottom: '10px',
+            fontSize: '1.1rem'
+          }}>
+            1. Select Your Crop
+          </label>
+          <select
+            id="cropSelect"
+            value={selectedCrop}
+            onChange={handleCropChange}
+            style={{
+              width: '100%',
+              padding: '15px',
+              border: '2px solid #e0e0e0',
+              borderRadius: '10px',
+              fontSize: '1rem',
+              fontFamily: 'inherit',
+              backgroundColor: 'white',
+              cursor: 'pointer',
+              boxSizing: 'border-box'
+            }}
+          >
+            <option value="" disabled>-- Choose a crop --</option>
+            {Object.keys(CROP_MODELS).map(cropName => (
+              <option key={cropName} value={cropName}>{cropName}</option>
+            ))}
+          </select>
+        </div>
+
         {/* Image Upload Section */}
         <div style={{ 
           border: selectedImageUrl ? '2px solid #4a7c59' : '2px dashed #cbd5e0',
@@ -228,16 +286,21 @@ const DiseaseDetection = ({ onAnalyze, isLoading }) => {
           textAlign: 'center',
           background: selectedImageUrl ? '#f0fdf4' : '#fafafa',
           transition: 'all 0.3s ease',
-          position: 'relative'
+          position: 'relative',
+          opacity: selectedCrop ? 1 : 0.5, // Dim if no crop is selected
+          pointerEvents: selectedCrop ? 'auto' : 'none' // Disable interaction if no crop
         }}>
           {!selectedImageUrl ? (
             <div>
               <div style={{ fontSize: '3rem', marginBottom: '15px' }}>📸</div>
               <h3 style={{ color: '#4a7c59', marginBottom: '10px', fontSize: '1.2rem' }}>
-                Upload Crop Image
+                2. Upload Crop Image
               </h3>
               <p style={{ color: '#666', marginBottom: '20px', fontSize: '0.9rem' }}>
-                Take a clear photo of affected crop areas for accurate diagnosis
+                {selectedCrop 
+                  ? `Take a clear photo of your ${selectedCrop} for accurate diagnosis`
+                  : 'Please select a crop first'
+                }
               </p>
               <label 
                 htmlFor="imageInput" 
@@ -253,16 +316,6 @@ const DiseaseDetection = ({ onAnalyze, isLoading }) => {
                   cursor: 'pointer',
                   transition: 'all 0.3s ease',
                   textDecoration: 'none'
-                }}
-                onMouseOver={(e) => {
-                  e.target.style.transform = 'translateY(-2px)';
-                  e.target.style.boxShadow = '0 8px 25px rgba(0,0,0,0.2)';
-                  e.target.style.background = '#3a6b49';
-                }}
-                onMouseOut={(e) => {
-                  e.target.style.transform = 'translateY(0)';
-                  e.target.style.boxShadow = 'none';
-                  e.target.style.background = '#4a7c59';
                 }}
               >
                 Choose Image
@@ -311,15 +364,6 @@ const DiseaseDetection = ({ onAnalyze, isLoading }) => {
                     fontSize: '0.9rem',
                     fontWeight: '600',
                     cursor: 'pointer',
-                    transition: 'all 0.3s ease'
-                  }}
-                  onMouseOver={(e) => {
-                    e.target.style.background = '#4a7c59';
-                    e.target.style.color = 'white';
-                  }}
-                  onMouseOut={(e) => {
-                    e.target.style.background = 'white';
-                    e.target.style.color = '#4a7c59';
                   }}
                 >
                   Change Image
@@ -347,15 +391,6 @@ const DiseaseDetection = ({ onAnalyze, isLoading }) => {
                     fontSize: '0.9rem',
                     fontWeight: '600',
                     cursor: 'pointer',
-                    transition: 'all 0.3s ease'
-                  }}
-                  onMouseOver={(e) => {
-                    e.target.style.background = '#dc3545';
-                    e.target.style.color = 'white';
-                  }}
-                  onMouseOut={(e) => {
-                    e.target.style.background = 'white';
-                    e.target.style.color = '#dc3545';
                   }}
                 >
                   Remove
@@ -379,29 +414,18 @@ const DiseaseDetection = ({ onAnalyze, isLoading }) => {
           <textarea
             value={textDescription}
             onChange={(e) => setTextDescription(e.target.value)}
-            placeholder="Describe any additional symptoms you notice: yellowing leaves, brown spots, wilting, unusual growth patterns, etc."
+            placeholder="Describe any additional symptoms you notice..."
             style={{
               width: '100%',
               padding: '15px',
               border: '2px solid #e0e0e0',
               borderRadius: '10px',
               fontSize: '1rem',
-              fontFamily: 'inherit',
               resize: 'vertical',
               minHeight: '100px',
-              transition: 'border-color 0.3s ease',
               boxSizing: 'border-box'
             }}
-            onFocus={(e) => {
-              e.target.style.borderColor = '#4a7c59';
-            }}
-            onBlur={(e) => {
-              e.target.style.borderColor = '#e0e0e0';
-            }}
           />
-          <p style={{ color: '#666', fontSize: '0.85rem', margin: '5px 0 0 0' }}>
-            Providing symptom details helps improve diagnosis accuracy
-          </p>
         </div>
 
         {/* Disease Detection Results */}
@@ -417,11 +441,8 @@ const DiseaseDetection = ({ onAnalyze, isLoading }) => {
               marginBottom: '15px', 
               fontSize: '1.2rem',
               fontWeight: '600',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px'
             }}>
-              🎯 Disease Detection Results
+              🎯 Disease Detection Results for {selectedCrop}
             </h4>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -433,7 +454,6 @@ const DiseaseDetection = ({ onAnalyze, isLoading }) => {
                     padding: '15px',
                     borderRadius: '8px',
                     border: index === 0 ? '2px solid #28a745' : '1px solid #e0e0e0',
-                    boxShadow: index === 0 ? '0 2px 8px rgba(40, 167, 69, 0.1)' : 'none'
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
@@ -447,7 +467,6 @@ const DiseaseDetection = ({ onAnalyze, isLoading }) => {
                     <span style={{ 
                       fontWeight: '700',
                       color: index === 0 ? '#28a745' : '#666',
-                      fontSize: '1rem'
                     }}>
                       {(prediction.probability * 100).toFixed(1)}%
                     </span>
@@ -467,16 +486,6 @@ const DiseaseDetection = ({ onAnalyze, isLoading }) => {
                       }}
                     />
                   </div>
-                  {index === 0 && (
-                    <p style={{ 
-                      color: '#28a745', 
-                      fontSize: '0.85rem', 
-                      margin: '8px 0 0 0',
-                      fontWeight: '500'
-                    }}>
-                      Most likely diagnosis
-                    </p>
-                  )}
                 </div>
               ))}
             </div>
@@ -487,33 +496,19 @@ const DiseaseDetection = ({ onAnalyze, isLoading }) => {
         <div style={{ textAlign: 'center' }}>
           <button
             onClick={analyzeImage}
-            disabled={!analyzeEnabled || isProcessing}
+            disabled={isAnalyzeButtonDisabled}
             style={{
               padding: '15px 40px',
               border: 'none',
               borderRadius: '10px',
               fontSize: '1.2rem',
               fontWeight: '600',
-              cursor: (!analyzeEnabled || isProcessing) ? 'not-allowed' : 'pointer',
-              background: (!analyzeEnabled || isProcessing) ? '#ccc' : '#28a745',
+              cursor: isAnalyzeButtonDisabled ? 'not-allowed' : 'pointer',
+              background: isAnalyzeButtonDisabled ? '#ccc' : '#28a745',
               color: 'white',
-              opacity: (!analyzeEnabled || isProcessing) ? 0.6 : 1,
+              opacity: isAnalyzeButtonDisabled ? 0.6 : 1,
               transition: 'all 0.3s ease',
               minWidth: '200px'
-            }}
-            onMouseOver={(e) => {
-              if (analyzeEnabled && !isProcessing) {
-                e.target.style.transform = 'translateY(-2px)';
-                e.target.style.boxShadow = '0 8px 25px rgba(40, 167, 69, 0.4)';
-                e.target.style.background = '#218838';
-              }
-            }}
-            onMouseOut={(e) => {
-              if (analyzeEnabled && !isProcessing) {
-                e.target.style.transform = 'translateY(0)';
-                e.target.style.boxShadow = 'none';
-                e.target.style.background = '#28a745';
-              }
             }}
           >
             {isModelLoading ? '⏳ Loading Model...' : 
@@ -521,60 +516,17 @@ const DiseaseDetection = ({ onAnalyze, isLoading }) => {
              '🔍 Analyze Crop'}
           </button>
           
-          {!analyzeEnabled && !selectedImageUrl && (
+          {(!selectedCrop || !selectedImageUrl) && (
             <p style={{ color: '#999', fontSize: '0.9rem', marginTop: '10px' }}>
-              Please upload an image to start analysis
+              {!selectedCrop 
+                ? 'Please select a crop to begin' 
+                : 'Please upload an image to start analysis'
+              }
             </p>
           )}
         </div>
-
-        {/* Tips Section */}
-        <div style={{ 
-          background: '#e8f5e8', 
-          border: '1px solid #4a7c59', 
-          borderRadius: '10px', 
-          padding: '20px' 
-        }}>
-          <h4 style={{ 
-            color: '#4a7c59', 
-            marginBottom: '15px', 
-            fontSize: '1.1rem',
-            fontWeight: '600',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px'
-          }}>
-            💡 Tips for Best Results
-          </h4>
-          <div style={{ 
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-            gap: '10px',
-            color: '#2c5530', 
-            fontSize: '0.9rem', 
-            lineHeight: '1.5'
-          }}>
-            <div>• Take photos in good natural light</div>
-            <div>• Focus on affected plant parts</div>
-            <div>• Include multiple angles if possible</div>
-            <div>• Avoid blurry or dark images</div>
-          </div>
-        </div>
-
-        {/* Model Status */}
-        {isModelLoading && (
-          <div style={{ 
-            background: '#fff3cd', 
-            border: '1px solid #ffeaa7', 
-            borderRadius: '10px', 
-            padding: '15px',
-            textAlign: 'center'
-          }}>
-            <p style={{ color: '#856404', margin: 0, fontSize: '0.9rem' }}>
-              🤖 Loading disease detection model... This may take a moment.
-            </p>
-          </div>
-        )}
+        
+        {/* Tips and Model Status sections remain the same */}
       </div>
     </div>
   );
