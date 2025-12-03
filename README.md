@@ -83,9 +83,9 @@ Before you begin, ensure you have the following installed:
 
 4. **Start the development server**
    ```bash
-   npm start
+   npm run dev
    # or
-   yarn start
+   yarn run dev
    ```
 
 5. **Open your browser**
@@ -113,15 +113,6 @@ agro-bot-frontend/
 ├── tests/                # Test files
 └── package.json
 ```
-
-## 🛠️ Available Scripts
-
-- `npm start` - Start development server
-- `npm test` - Run test suite
-- `npm run build` - Build for production
-- `npm run lint` - Run ESLint
-- `npm run lint:fix` - Fix ESLint issues
-- `npm run format` - Format code with Prettier
 
 ## 🔧 Configuration
 
@@ -151,19 +142,6 @@ REACT_APP_AI_MODEL_ENDPOINT=your_ai_model_endpoint
 ## 📱 Mobile Support
 
 Krishi Vikas is fully responsive and optimized for mobile devices. The PWA (Progressive Web App) version allows offline functionality for critical features.
-
-## 🧪 Testing
-
-```bash
-# Run all tests
-npm test
-
-# Run tests in watch mode
-npm test -- --watch
-
-# Run tests with coverage
-npm test -- --coverage
-```
 
 ## 🚀 Deployment
 
@@ -247,9 +225,9 @@ This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md
 ## 📞 Support & Community
 
 - **Issues**: [GitHub Issues](https://github.com/alumnx-ai-labs/agro-bot-frontend/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/alumnx-ai-labs/agro-bot-frontend/discussions)
-- **Email**: support@krishivikas.com
-- **Documentation**: [Wiki](https://github.com/alumnx-ai-labs/agro-bot-frontend/wiki)
+<!-- - **Discussions**: [GitHub Discussions](https://github.com/alumnx-ai-labs/agro-bot-frontend/discussions) -->
+- **Email**: support@alumnx.com
+<!-- - **Documentation**: [Wiki](https://github.com/alumnx-ai-labs/agro-bot-frontend/wiki) -->
 
 ## 🗺️ Roadmap
 
